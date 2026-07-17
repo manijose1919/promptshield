@@ -4,11 +4,13 @@ import type { TokenVault } from "../../core/vault.js";
 import type { AuditSink } from "../../core/audit.js";
 import { summarizeEntities } from "../../core/audit.js";
 import type { TokenMap } from "../../core/types.js";
+import type { Metrics } from "../metrics.js";
 
 export interface RedactRouteDeps {
   redactor: Redactor;
   vault: TokenVault;
   audit: AuditSink;
+  metrics: Metrics;
 }
 
 const redactBodySchema = {
@@ -43,7 +45,7 @@ export function registerRedactRoutes(
   app: FastifyInstance,
   deps: RedactRouteDeps,
 ): void {
-  const { redactor, vault, audit } = deps;
+  const { redactor, vault, audit, metrics } = deps;
 
   app.post<{ Body: { text: string; store_token_map?: boolean } }>(
     "/v1/redact",
@@ -51,6 +53,9 @@ export function registerRedactRoutes(
     async (req, reply) => {
       const { text, store_token_map } = req.body;
       const result = redactor.redact(text);
+
+      metrics.recordRequest("/v1/redact");
+      metrics.recordRedaction("/v1/redact", result.entities, result.blocked);
 
       const summary = summarizeEntities(result.entities);
       await audit.record({

@@ -23,7 +23,7 @@ function isAuthorized(candidate: string, keys: string[]): boolean {
  * warning is logged so this can never be mistaken for a secure default.
  */
 export function registerAuth(app: FastifyInstance, apiKeys: string[]): void {
-  const publicRoutes = new Set(["/health", "/v1/health"]);
+  const publicRoutes = new Set(["/health", "/v1/health", "/metrics"]);
 
   if (apiKeys.length === 0) {
     app.log.warn(

@@ -10,6 +10,8 @@ import { registerAuth } from "./plugins/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerRedactRoutes } from "./routes/redact.js";
 import { registerProxyRoutes } from "./routes/proxy.js";
+import { registerMetricsRoute } from "./routes/metrics.js";
+import { Metrics } from "./metrics.js";
 
 export interface AppOverrides {
   redactor?: Redactor;
@@ -47,12 +49,16 @@ export function createApp(
   const audit =
     overrides.audit ?? createAuditSink(config.auditSink, config.auditFile);
 
+  const metrics = new Metrics();
+
   registerAuth(app, config.apiKeys);
   registerHealthRoutes(app);
-  registerRedactRoutes(app, { redactor, vault, audit });
+  registerMetricsRoute(app, metrics);
+  registerRedactRoutes(app, { redactor, vault, audit, metrics });
   registerProxyRoutes(app, {
     redactor,
     audit,
+    metrics,
     fetchImpl: overrides.fetchImpl ?? fetch,
     upstreamBaseUrl: config.upstreamBaseUrl,
     upstreamApiKey: config.upstreamApiKey,
@@ -60,7 +66,7 @@ export function createApp(
   });
 
   // Expose wired dependencies so later layers (proxy) and tests can reach them.
-  app.decorate("promptshield", { config, redactor, vault, audit, policy });
+  app.decorate("promptshield", { config, redactor, vault, audit, policy, metrics });
 
   return app;
 }
@@ -73,6 +79,7 @@ declare module "fastify" {
       vault: TokenVault;
       audit: AuditSink;
       policy: PolicyEngine;
+      metrics: Metrics;
     };
   }
 }

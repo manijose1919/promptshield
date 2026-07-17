@@ -3,10 +3,12 @@ import type { Redactor } from "../../core/redactor.js";
 import type { AuditSink } from "../../core/audit.js";
 import { summarizeEntities } from "../../core/audit.js";
 import type { TokenMap } from "../../core/types.js";
+import type { Metrics } from "../metrics.js";
 
 export interface ProxyRouteDeps {
   redactor: Redactor;
   audit: AuditSink;
+  metrics: Metrics;
   fetchImpl: typeof fetch;
   upstreamBaseUrl: string;
   upstreamApiKey: string;
@@ -80,6 +82,9 @@ export function registerProxyRoutes(
 
     const { redacted, tokenMap, blocked, entities } =
       deps.redactor.redactBatch(texts);
+
+    deps.metrics.recordRequest("/v1/chat/completions");
+    deps.metrics.recordRedaction("/v1/chat/completions", entities, blocked);
 
     await deps.audit.record({
       ts: new Date().toISOString(),
