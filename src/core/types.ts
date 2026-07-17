@@ -7,7 +7,10 @@ export type EntityType =
   | "IPV4"
   | "IPV6"
   | "JWT"
-  | "API_KEY";
+  | "API_KEY"
+  /** User-defined rules from configuration. The specific rule name is carried
+   *  in `label` so placeholders read naturally (e.g. `[EMPLOYEE_ID_1]`). */
+  | "CUSTOM";
 
 /** Policy action applied to a detected entity. */
 export type Action = "redact" | "block" | "allow";
@@ -21,6 +24,8 @@ export interface Match {
   end: number;
   /** The exact matched substring. */
   value: string;
+  /** Optional display label (used in placeholders); defaults to `type`. */
+  label?: string;
 }
 
 /**
@@ -41,6 +46,8 @@ export interface TokenMap {
 /** An entity as reported to callers (raw value intentionally omitted). */
 export interface ReportedEntity {
   type: EntityType;
+  /** The rule label for CUSTOM entities; equals `type` for built-ins. */
+  label: string;
   placeholder: string;
   action: Action;
   start: number;

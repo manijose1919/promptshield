@@ -87,10 +87,11 @@ export class Redactor {
         out += m.value; // leave the original text in place
       } else {
         if (action === "block") blocked = true;
-        const placeholder = tokenizer.placeholderFor(m.type, m.value);
+        const placeholder = tokenizer.placeholderFor(m.type, m.value, m.label);
         out += placeholder;
         entities.push({
           type: m.type,
+          label: m.label ?? m.type,
           placeholder,
           action,
           start: m.start,

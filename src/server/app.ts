@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppConfig } from "../config/env.js";
 import { Redactor } from "../core/redactor.js";
+import { defaultDetectors } from "../core/detectors/index.js";
+import { buildCustomDetectors } from "../core/detectors/custom.js";
 import { PolicyEngine } from "../core/policy.js";
 import { createAuditSink, type AuditSink } from "../core/audit.js";
 import { InMemoryTokenVault, type TokenVault } from "../core/vault.js";
@@ -34,8 +36,13 @@ export function createApp(
   });
 
   const policy = new PolicyEngine({ defaultAction: config.defaultAction });
+  const detectors = [
+    ...defaultDetectors,
+    ...buildCustomDetectors(config.customRules),
+  ];
   const redactor =
-    overrides.redactor ?? new Redactor({ resolveAction: policy.resolver() });
+    overrides.redactor ??
+    new Redactor({ detectors, resolveAction: policy.resolver() });
   const vault = overrides.vault ?? new InMemoryTokenVault();
   const audit =
     overrides.audit ?? createAuditSink(config.auditSink, config.auditFile);

@@ -4,6 +4,12 @@ export type { RedactorOptions } from "./redactor.js";
 export { Tokenizer, rehydrate } from "./tokenizer.js";
 export { defaultDetectors } from "./detectors/index.js";
 export { luhnValid } from "./detectors/creditCard.js";
+export {
+  createCustomDetector,
+  buildCustomDetectors,
+} from "./detectors/custom.js";
+export type { CustomRuleSpec } from "./detectors/custom.js";
+export { normalizeLabel } from "./tokenizer.js";
 export { PolicyEngine } from "./policy.js";
 export type { PolicyConfig, PolicyOverrides } from "./policy.js";
 export {

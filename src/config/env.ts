@@ -1,4 +1,12 @@
 import { z } from "zod";
+import type { CustomRuleSpec } from "../core/detectors/custom.js";
+
+const CustomRuleSchema = z.object({
+  name: z.string().min(1),
+  pattern: z.string().optional(),
+  flags: z.string().optional(),
+  terms: z.array(z.string().min(1)).optional(),
+});
 
 /**
  * Environment schema. Parsed once at startup so misconfiguration fails fast
@@ -28,7 +36,23 @@ const EnvSchema = z.object({
   UPSTREAM_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
   UPSTREAM_API_KEY: z.string().default(""),
   REHYDRATE_RESPONSES: boolish.default("true"),
+
+  /** JSON array of custom rules, e.g. [{"name":"employee id","pattern":"EMP-\\d{5}"}] */
+  PROMPTSHIELD_CUSTOM_RULES: z.string().default(""),
 });
+
+/** Parse and validate the custom-rules JSON blob. Fails fast on bad config. */
+function parseCustomRules(raw: string): CustomRuleSpec[] {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return [];
+  let json: unknown;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    throw new Error("PROMPTSHIELD_CUSTOM_RULES is not valid JSON.");
+  }
+  return z.array(CustomRuleSchema).parse(json);
+}
 
 export type AppConfig = {
   port: number;
@@ -41,6 +65,7 @@ export type AppConfig = {
   upstreamBaseUrl: string;
   upstreamApiKey: string;
   rehydrateResponses: boolean;
+  customRules: CustomRuleSpec[];
 };
 
 /**
@@ -63,5 +88,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     upstreamBaseUrl: parsed.UPSTREAM_BASE_URL.replace(/\/+$/, ""),
     upstreamApiKey: parsed.UPSTREAM_API_KEY,
     rehydrateResponses: parsed.REHYDRATE_RESPONSES,
+    customRules: parseCustomRules(parsed.PROMPTSHIELD_CUSTOM_RULES),
   };
 }

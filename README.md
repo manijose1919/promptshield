@@ -113,6 +113,19 @@ The HTTP layer is built with an **app-factory** (`createApp()`), so you can also
 
 ---
 
+## Custom detection rules
+
+Enterprises have proprietary PII the built-ins can't know about (employee IDs, project codenames). Add your own via `PROMPTSHIELD_CUSTOM_RULES` — a JSON array, no code required:
+
+```bash
+PROMPTSHIELD_CUSTOM_RULES='[
+  {"name":"employee id","pattern":"EMP-\\d{5}"},
+  {"name":"codename","terms":["Project Titan","Bluebird"],"flags":"i"}
+]'
+```
+
+Each rule needs a `name` plus either a `pattern` (regex) or `terms` (literals). Matches render as `[EMPLOYEE_ID_1]` and rehydrate like any built-in. Invalid rules fail loudly at startup — never silently.
+
 ## Configuration
 
 All configuration is via environment variables — see [`.env.example`](./.env.example). Secrets (provider keys, client keys) are **never** hardcoded.

@@ -107,8 +107,14 @@ export function registerRedactRoutes(
 /** Never echo raw offsets that could aid reconstruction beyond what's needed. */
 function stripRaw(e: {
   type: string;
+  label: string;
   placeholder: string;
   action: string;
-}): { type: string; placeholder: string; action: string } {
-  return { type: e.type, placeholder: e.placeholder, action: e.action };
+}): { type: string; label: string; placeholder: string; action: string } {
+  return {
+    type: e.type,
+    label: e.label,
+    placeholder: e.placeholder,
+    action: e.action,
+  };
 }
