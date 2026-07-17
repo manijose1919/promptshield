@@ -1,0 +1,62 @@
+import Fastify, { type FastifyInstance } from "fastify";
+import type { AppConfig } from "../config/env.js";
+import { Redactor } from "../core/redactor.js";
+import { PolicyEngine } from "../core/policy.js";
+import { createAuditSink, type AuditSink } from "../core/audit.js";
+import { InMemoryTokenVault, type TokenVault } from "../core/vault.js";
+import { registerAuth } from "./plugins/auth.js";
+import { registerHealthRoutes } from "./routes/health.js";
+import { registerRedactRoutes } from "./routes/redact.js";
+
+export interface AppOverrides {
+  redactor?: Redactor;
+  vault?: TokenVault;
+  audit?: AuditSink;
+  /** Injectable fetch for the proxy route (added in Layer 4) and tests. */
+  fetchImpl?: typeof fetch;
+}
+
+/**
+ * Build a fully-wired Fastify instance WITHOUT starting it. This is the single
+ * seam that makes PromptShield usable three ways: as a standalone server
+ * (index.ts calls .listen()), embedded in another Fastify app (register these
+ * routes), and in tests (app.inject() with no network). Nothing here has a
+ * side effect beyond constructing the instance.
+ */
+export function createApp(
+  config: AppConfig,
+  overrides: AppOverrides = {},
+): FastifyInstance {
+  const app = Fastify({
+    logger: { level: config.logLevel },
+    bodyLimit: 2 * 1024 * 1024,
+  });
+
+  const policy = new PolicyEngine({ defaultAction: config.defaultAction });
+  const redactor =
+    overrides.redactor ?? new Redactor({ resolveAction: policy.resolver() });
+  const vault = overrides.vault ?? new InMemoryTokenVault();
+  const audit =
+    overrides.audit ?? createAuditSink(config.auditSink, config.auditFile);
+
+  registerAuth(app, config.apiKeys);
+  registerHealthRoutes(app);
+  registerRedactRoutes(app, { redactor, vault, audit });
+
+  // Expose wired dependencies so later layers (proxy) and tests can reach them.
+  app.decorate("promptshield", { config, redactor, vault, audit, policy });
+
+  return app;
+}
+
+declare module "fastify" {
+  interface FastifyInstance {
+    promptshield: {
+      config: AppConfig;
+      redactor: Redactor;
+      vault: TokenVault;
+      audit: AuditSink;
+      policy: PolicyEngine;
+    };
+  }
+}

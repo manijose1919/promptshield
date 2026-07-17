@@ -1,17 +1,24 @@
 import { loadConfig } from "./config/env.js";
+import { createApp } from "./server/app.js";
 
 /**
- * Standalone entrypoint. Layer 1 bootstrap: validates configuration and
- * confirms the process is wired correctly. The full HTTP server (app factory,
- * routes) is introduced in later layers and wired in here.
+ * Standalone entrypoint: load config, build the app, and listen. Graceful
+ * shutdown on SIGINT/SIGTERM so in-flight requests drain and the audit file
+ * handle is released cleanly (important under Docker/orchestrators).
  */
 async function main(): Promise<void> {
   const config = loadConfig();
-  // eslint-disable-next-line no-console
-  console.log(
-    `[PromptShield] config OK — will listen on ${config.host}:${config.port} ` +
-      `(default action: ${config.defaultAction}, audit: ${config.auditSink})`,
-  );
+  const app = createApp(config);
+
+  const close = async (signal: string) => {
+    app.log.info({ signal }, "shutting down");
+    await app.close();
+    process.exit(0);
+  };
+  process.on("SIGINT", () => void close("SIGINT"));
+  process.on("SIGTERM", () => void close("SIGTERM"));
+
+  await app.listen({ port: config.port, host: config.host });
 }
 
 main().catch((err) => {
