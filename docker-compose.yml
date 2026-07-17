@@ -1,0 +1,26 @@
+# PromptShield — one-command standalone stack.
+#   docker compose up --build
+services:
+  promptshield:
+    build: .
+    image: promptshield:latest
+    container_name: promptshield
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      PORT: 8787
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PROMPTSHIELD_API_KEYS: ${PROMPTSHIELD_API_KEYS:-}
+      DEFAULT_ACTION: ${DEFAULT_ACTION:-redact}
+      AUDIT_SINK: ${AUDIT_SINK:-file}
+      AUDIT_FILE: /app/data/audit.jsonl
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:-https://api.openai.com/v1}
+      UPSTREAM_API_KEY: ${UPSTREAM_API_KEY:-}
+      REHYDRATE_RESPONSES: ${REHYDRATE_RESPONSES:-true}
+    volumes:
+      - promptshield-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  promptshield-data:

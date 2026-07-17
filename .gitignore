@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment & secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Runtime data / audit logs
+data/
+*.log
+audit-*.jsonl
+
+# Test / coverage
+coverage/
+.vitest/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

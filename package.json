@@ -1,0 +1,53 @@
+{
+  "name": "promptshield",
+  "version": "0.1.0",
+  "description": "LLM Prompt Firewall & PII Redaction Gateway — scrub sensitive data before it reaches third-party model providers.",
+  "type": "module",
+  "license": "MIT",
+  "author": "manijose1919",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core/index.js",
+    "./sdk": "./dist/sdk/client.js"
+  },
+  "bin": {
+    "promptshield": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "pii",
+    "redaction",
+    "llm",
+    "gateway",
+    "firewall",
+    "dlp",
+    "openai",
+    "compliance",
+    "gdpr"
+  ],
+  "dependencies": {
+    "fastify": "^5.2.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "pino-pretty": "^13.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
+  }
+}
