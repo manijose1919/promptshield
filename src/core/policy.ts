@@ -30,4 +30,18 @@ export class PolicyEngine {
   resolver(): (type: EntityType) => Action {
     return (type) => this.resolve(type);
   }
+
+  /**
+   * Build a resolver that layers per-request policy over this engine.
+   * Precedence (highest first):
+   *   request override for the type → request default → server policy.
+   * A request that supplies neither behaves identically to `resolver()`.
+   */
+  resolverWith(
+    requestDefault?: Action,
+    requestOverrides?: PolicyOverrides,
+  ): (type: EntityType) => Action {
+    return (type) =>
+      requestOverrides?.[type] ?? requestDefault ?? this.resolve(type);
+  }
 }

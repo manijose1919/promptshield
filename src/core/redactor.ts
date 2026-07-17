@@ -32,10 +32,21 @@ export class Redactor {
     this.resolveAction = options.resolveAction ?? (() => "redact");
   }
 
-  /** Detect PII in `text` and return a redacted copy plus a reversible map. */
-  redact(text: string): RedactionResult {
+  /**
+   * Detect PII in `text` and return a redacted copy plus a reversible map.
+   * An optional `resolveOverride` lets a single call use a different policy
+   * (e.g. per-request overrides) without mutating this Redactor.
+   */
+  redact(
+    text: string,
+    resolveOverride?: (type: EntityType) => Action,
+  ): RedactionResult {
     const tokenizer = new Tokenizer();
-    const { redacted, entities, blocked } = this.redactWith(text, tokenizer);
+    const { redacted, entities, blocked } = this.redactWith(
+      text,
+      tokenizer,
+      resolveOverride,
+    );
     return { redacted, entities, tokenMap: tokenizer.tokenMap(), blocked };
   }
 
@@ -68,7 +79,9 @@ export class Redactor {
   private redactWith(
     text: string,
     tokenizer: Tokenizer,
+    resolveOverride?: (type: EntityType) => Action,
   ): { redacted: string; entities: ReportedEntity[]; blocked: boolean } {
+    const resolve = resolveOverride ?? this.resolveAction;
     const raw = this.detectors.flatMap((d) => d.detect(text));
     const chosen = resolveOverlaps(raw);
 
@@ -81,7 +94,7 @@ export class Redactor {
     let out = "";
     let cursor = 0;
     for (const m of chosen) {
-      const action = this.resolveAction(m.type);
+      const action = resolve(m.type);
       out += text.slice(cursor, m.start);
 
       const label = m.label ?? m.type;

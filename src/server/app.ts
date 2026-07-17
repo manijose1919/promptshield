@@ -54,7 +54,7 @@ export function createApp(
   registerAuth(app, config.apiKeys);
   registerHealthRoutes(app);
   registerMetricsRoute(app, metrics);
-  registerRedactRoutes(app, { redactor, vault, audit, metrics });
+  registerRedactRoutes(app, { redactor, vault, audit, metrics, policy });
   registerProxyRoutes(app, {
     redactor,
     audit,

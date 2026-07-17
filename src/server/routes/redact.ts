@@ -5,13 +5,29 @@ import type { AuditSink } from "../../core/audit.js";
 import { summarizeEntities } from "../../core/audit.js";
 import type { TokenMap } from "../../core/types.js";
 import type { Metrics } from "../metrics.js";
+import type { PolicyEngine } from "../../core/policy.js";
+import type { Action, EntityType } from "../../core/types.js";
 
 export interface RedactRouteDeps {
   redactor: Redactor;
   vault: TokenVault;
   audit: AuditSink;
   metrics: Metrics;
+  policy: PolicyEngine;
 }
+
+const ACTIONS: Action[] = ["redact", "mask", "block", "allow"];
+const ENTITY_TYPES: EntityType[] = [
+  "EMAIL",
+  "PHONE",
+  "CREDIT_CARD",
+  "SSN",
+  "IPV4",
+  "IPV6",
+  "JWT",
+  "API_KEY",
+  "CUSTOM",
+];
 
 const redactBodySchema = {
   type: "object",
@@ -20,8 +36,27 @@ const redactBodySchema = {
   properties: {
     text: { type: "string", maxLength: 1_000_000 },
     store_token_map: { type: "boolean", default: false },
+    policy: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        default: { type: "string", enum: ACTIONS },
+        overrides: {
+          type: "object",
+          additionalProperties: false,
+          properties: Object.fromEntries(
+            ENTITY_TYPES.map((t) => [t, { type: "string", enum: ACTIONS }]),
+          ),
+        },
+      },
+    },
   },
 } as const;
+
+interface RequestPolicy {
+  default?: Action;
+  overrides?: Partial<Record<EntityType, Action>>;
+}
 
 const rehydrateBodySchema = {
   type: "object",
@@ -45,14 +80,19 @@ export function registerRedactRoutes(
   app: FastifyInstance,
   deps: RedactRouteDeps,
 ): void {
-  const { redactor, vault, audit, metrics } = deps;
+  const { redactor, vault, audit, metrics, policy } = deps;
 
-  app.post<{ Body: { text: string; store_token_map?: boolean } }>(
+  app.post<{
+    Body: { text: string; store_token_map?: boolean; policy?: RequestPolicy };
+  }>(
     "/v1/redact",
     { schema: { body: redactBodySchema } },
     async (req, reply) => {
-      const { text, store_token_map } = req.body;
-      const result = redactor.redact(text);
+      const { text, store_token_map, policy: reqPolicy } = req.body;
+      const resolver = reqPolicy
+        ? policy.resolverWith(reqPolicy.default, reqPolicy.overrides)
+        : undefined;
+      const result = redactor.redact(text, resolver);
 
       metrics.recordRequest("/v1/redact");
       metrics.recordRedaction("/v1/redact", result.entities, result.blocked);

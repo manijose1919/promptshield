@@ -113,6 +113,39 @@ The HTTP layer is built with an **app-factory** (`createApp()`), so you can also
 
 ---
 
+## Policy & actions
+
+Every detected entity resolves to one of four actions:
+
+| Action | Effect | Reversible? |
+| --- | --- | --- |
+| `redact` | Replace with a placeholder `[EMAIL_1]` | ✅ via token map |
+| `mask` | Replace with a masked form `j***@acme.com` (card → `**** **** **** 1111`) | ❌ lossy by design |
+| `block` | Redact **and** flag the request → API returns `422` | ✅ |
+| `allow` | Leave untouched | — |
+
+Set a server-wide default with `DEFAULT_ACTION`, or override **per request**:
+
+```jsonc
+POST /v1/redact
+{
+  "text": "jane@acme.com and 415-555-0132",
+  "policy": { "default": "redact", "overrides": { "EMAIL": "mask" } }
+}
+// → "j***@acme.com and [PHONE_1]"
+```
+
+Precedence: request override → request default → server override → server default.
+
+## Observability
+
+`GET /metrics` exposes Prometheus counters (public, no auth) — requests by route, entities by type & action, and blocks:
+
+```
+promptshield_entities_total{action="redact",type="EMAIL"} 42
+promptshield_blocked_total{route="/v1/redact"} 3
+```
+
 ## Custom detection rules
 
 Enterprises have proprietary PII the built-ins can't know about (employee IDs, project codenames). Add your own via `PROMPTSHIELD_CUSTOM_RULES` — a JSON array, no code required:

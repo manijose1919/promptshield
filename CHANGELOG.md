@@ -3,6 +3,18 @@
 All notable changes to PromptShield are documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased] — Phase 3 features
+
+### Added
+- **Custom detection rules** from `PROMPTSHIELD_CUSTOM_RULES` (regex or literal
+  terms), validated at startup, rendered with named placeholders.
+- **`mask` action**: non-reversible partial masking (keep-last-4 for cards /
+  phones / SSN, domain-preserving for email).
+- **Prometheus `/metrics`** endpoint (public): request, entity, and block
+  counters, hand-rolled exposition format (no new dependency).
+- **Per-request policy overrides** on `POST /v1/redact` via a `policy` object
+  with clear precedence over server defaults.
+
 ## [0.1.0] — Initial build
 
 ### Added
