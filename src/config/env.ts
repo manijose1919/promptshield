@@ -28,7 +28,7 @@ const EnvSchema = z.object({
   /** Comma-separated client API keys. Empty => auth disabled (dev only). */
   PROMPTSHIELD_API_KEYS: z.string().default(""),
 
-  DEFAULT_ACTION: z.enum(["redact", "block", "allow"]).default("redact"),
+  DEFAULT_ACTION: z.enum(["redact", "mask", "block", "allow"]).default("redact"),
 
   AUDIT_SINK: z.enum(["none", "stdout", "file"]).default("file"),
   AUDIT_FILE: z.string().default("./data/audit.jsonl"),
@@ -59,7 +59,7 @@ export type AppConfig = {
   host: string;
   logLevel: z.infer<typeof EnvSchema>["LOG_LEVEL"];
   apiKeys: string[];
-  defaultAction: "redact" | "block" | "allow";
+  defaultAction: "redact" | "mask" | "block" | "allow";
   auditSink: "none" | "stdout" | "file";
   auditFile: string;
   upstreamBaseUrl: string;

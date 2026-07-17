@@ -12,8 +12,14 @@ export type EntityType =
    *  in `label` so placeholders read naturally (e.g. `[EMPLOYEE_ID_1]`). */
   | "CUSTOM";
 
-/** Policy action applied to a detected entity. */
-export type Action = "redact" | "block" | "allow";
+/**
+ * Policy action applied to a detected entity.
+ * - `redact`: replace with a reversible placeholder (`[EMAIL_1]`)
+ * - `mask`: replace with a non-reversible masked form (`j***@acme.com`)
+ * - `block`: redact AND flag the request so callers can reject it
+ * - `allow`: leave the value untouched
+ */
+export type Action = "redact" | "mask" | "block" | "allow";
 
 /** A single raw match produced by a detector, before policy is applied. */
 export interface Match {

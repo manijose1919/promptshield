@@ -10,6 +10,7 @@ export {
 } from "./detectors/custom.js";
 export type { CustomRuleSpec } from "./detectors/custom.js";
 export { normalizeLabel } from "./tokenizer.js";
+export { maskValue } from "./mask.js";
 export { PolicyEngine } from "./policy.js";
 export type { PolicyConfig, PolicyOverrides } from "./policy.js";
 export {

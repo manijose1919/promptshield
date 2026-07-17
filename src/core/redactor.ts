@@ -9,6 +9,7 @@ import type {
 } from "./types.js";
 import { defaultDetectors } from "./detectors/index.js";
 import { Tokenizer, rehydrate } from "./tokenizer.js";
+import { maskValue } from "./mask.js";
 
 export interface RedactorOptions {
   /** Detector set to use. Defaults to the built-in registry. */
@@ -83,15 +84,28 @@ export class Redactor {
       const action = this.resolveAction(m.type);
       out += text.slice(cursor, m.start);
 
+      const label = m.label ?? m.type;
       if (action === "allow") {
         out += m.value; // leave the original text in place
+      } else if (action === "mask") {
+        // Masking is intentionally NON-reversible: no token-map entry.
+        const masked = maskValue(m.type, m.value, m.label);
+        out += masked;
+        entities.push({
+          type: m.type,
+          label,
+          placeholder: masked,
+          action,
+          start: m.start,
+          end: m.end,
+        });
       } else {
         if (action === "block") blocked = true;
         const placeholder = tokenizer.placeholderFor(m.type, m.value, m.label);
         out += placeholder;
         entities.push({
           type: m.type,
-          label: m.label ?? m.type,
+          label,
           placeholder,
           action,
           start: m.start,
