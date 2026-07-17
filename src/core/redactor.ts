@@ -33,10 +33,44 @@ export class Redactor {
 
   /** Detect PII in `text` and return a redacted copy plus a reversible map. */
   redact(text: string): RedactionResult {
+    const tokenizer = new Tokenizer();
+    const { redacted, entities, blocked } = this.redactWith(text, tokenizer);
+    return { redacted, entities, tokenMap: tokenizer.tokenMap(), blocked };
+  }
+
+  /**
+   * Redact several strings under a SHARED tokenizer so the same value maps to
+   * the same placeholder across all of them. Essential for the chat proxy:
+   * an email appearing in both the system and user message must become the
+   * same `[EMAIL_1]` in each, and rehydrate unambiguously from one map.
+   */
+  redactBatch(texts: string[]): {
+    redacted: string[];
+    entities: ReportedEntity[];
+    tokenMap: TokenMap;
+    blocked: boolean;
+  } {
+    const tokenizer = new Tokenizer();
+    const redacted: string[] = [];
+    const entities: ReportedEntity[] = [];
+    let blocked = false;
+    for (const text of texts) {
+      const r = this.redactWith(text, tokenizer);
+      redacted.push(r.redacted);
+      entities.push(...r.entities);
+      if (r.blocked) blocked = true;
+    }
+    return { redacted, entities, tokenMap: tokenizer.tokenMap(), blocked };
+  }
+
+  /** Core redaction pass against a caller-supplied tokenizer. */
+  private redactWith(
+    text: string,
+    tokenizer: Tokenizer,
+  ): { redacted: string; entities: ReportedEntity[]; blocked: boolean } {
     const raw = this.detectors.flatMap((d) => d.detect(text));
     const chosen = resolveOverlaps(raw);
 
-    const tokenizer = new Tokenizer();
     const entities: ReportedEntity[] = [];
     let blocked = false;
 
@@ -67,12 +101,7 @@ export class Redactor {
     }
     out += text.slice(cursor);
 
-    return {
-      redacted: out,
-      entities,
-      tokenMap: tokenizer.tokenMap(),
-      blocked,
-    };
+    return { redacted: out, entities, blocked };
   }
 
   /** Swap placeholders in `text` back to their originals. */

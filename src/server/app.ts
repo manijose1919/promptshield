@@ -7,6 +7,7 @@ import { InMemoryTokenVault, type TokenVault } from "../core/vault.js";
 import { registerAuth } from "./plugins/auth.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerRedactRoutes } from "./routes/redact.js";
+import { registerProxyRoutes } from "./routes/proxy.js";
 
 export interface AppOverrides {
   redactor?: Redactor;
@@ -42,6 +43,14 @@ export function createApp(
   registerAuth(app, config.apiKeys);
   registerHealthRoutes(app);
   registerRedactRoutes(app, { redactor, vault, audit });
+  registerProxyRoutes(app, {
+    redactor,
+    audit,
+    fetchImpl: overrides.fetchImpl ?? fetch,
+    upstreamBaseUrl: config.upstreamBaseUrl,
+    upstreamApiKey: config.upstreamApiKey,
+    rehydrateResponses: config.rehydrateResponses,
+  });
 
   // Expose wired dependencies so later layers (proxy) and tests can reach them.
   app.decorate("promptshield", { config, redactor, vault, audit, policy });

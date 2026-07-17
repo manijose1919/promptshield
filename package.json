@@ -13,6 +13,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./core": "./dist/core/index.js",
+    "./server": "./dist/server/index.js",
     "./sdk": "./dist/sdk/client.js"
   },
   "bin": {
