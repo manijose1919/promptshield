@@ -5,6 +5,9 @@ import { creditCardDetector } from "./creditCard.js";
 import { ssnDetector } from "./ssn.js";
 import { ipv4Detector, ipv6Detector } from "./ip.js";
 import { jwtDetector, apiKeyDetector } from "./secrets.js";
+import { dateDetector } from "./date.js";
+import { addressDetector } from "./address.js";
+import { nameDetector } from "./name.js";
 
 /**
  * The default detector registry. Order is not significant for correctness —
@@ -20,6 +23,9 @@ export const defaultDetectors: Detector[] = [
   apiKeyDetector,
   ipv4Detector,
   ipv6Detector,
+  dateDetector,
+  addressDetector,
+  nameDetector,
 ];
 
 export {
@@ -31,4 +37,7 @@ export {
   ipv6Detector,
   jwtDetector,
   apiKeyDetector,
+  dateDetector,
+  addressDetector,
+  nameDetector,
 };

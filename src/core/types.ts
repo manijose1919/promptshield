@@ -8,6 +8,11 @@ export type EntityType =
   | "IPV6"
   | "JWT"
   | "API_KEY"
+  /** Heuristic (non-regex-exact) identifiers — see detectors/{date,address,name}.
+   *  Higher recall, lower precision than the structured detectors above. */
+  | "DATE"
+  | "ADDRESS"
+  | "NAME"
   /** User-defined rules from configuration. The specific rule name is carried
    *  in `label` so placeholders read naturally (e.g. `[EMPLOYEE_ID_1]`). */
   | "CUSTOM";

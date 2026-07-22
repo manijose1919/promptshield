@@ -19,6 +19,11 @@ describe("maskValue", () => {
   it("keeps email domain and first char", () => {
     expect(maskValue("EMAIL", "jane@acme.com")).toBe("j***@acme.com");
   });
+  it("fully masks heuristic identifiers (name/address/date)", () => {
+    expect(maskValue("NAME", "Alice Chen")).toBe("***** ****");
+    expect(maskValue("DATE", "03/14/1990")).toBe("**/**/****");
+    expect(maskValue("ADDRESS", "123 Main St")).toBe("*** **** **");
+  });
 });
 
 describe("Redactor with mask action", () => {

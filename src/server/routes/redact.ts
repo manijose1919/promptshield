@@ -26,6 +26,9 @@ const ENTITY_TYPES: EntityType[] = [
   "IPV6",
   "JWT",
   "API_KEY",
+  "DATE",
+  "ADDRESS",
+  "NAME",
   "CUSTOM",
 ];
 

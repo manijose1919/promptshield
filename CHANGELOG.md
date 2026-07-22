@@ -15,6 +15,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   needs. Raw PII is never returned on the wire when the vault already holds it.
 
 ### Added
+- **Heuristic detectors** for three high-value HIPAA/GDPR identifiers that
+  regex-exact detectors miss: `DATE` (incl. DOB — numeric/ISO/month-name forms,
+  not bare years), `ADDRESS` (US street addresses), and `NAME` (person names,
+  detected only when cued by an honorific or an introduction like "my name
+  is …"). All maskable (full-mask, no partial reveal) and policy-configurable.
 - **Streaming proxy support** (`stream: true`). The proxy now relays the
   upstream SSE stream and rehydrates placeholders in `delta.content` and
   streamed tool-call `arguments` — correctly buffering placeholders split

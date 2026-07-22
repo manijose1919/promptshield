@@ -44,6 +44,12 @@ export function maskValue(type: EntityType, value: string, label?: string): stri
     case "JWT":
     case "API_KEY":
       return keepLast(value, 4);
+    case "DATE":
+    case "ADDRESS":
+    case "NAME":
+      // Heuristic identifiers: reveal nothing — a partial name/date/address is
+      // still identifying. Full mask, separators preserved.
+      return maskAlnum(value);
     case "CUSTOM":
     default: {
       // Unknown/custom: keep the last 2 chars when there's enough to hide

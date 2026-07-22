@@ -16,7 +16,7 @@ Enterprise DLP suites exist, but they are heavy, expensive, and not designed to 
 
 ## What it does
 
-- **Detects** PII with modular, composable detectors (email, phone, credit card w/ Luhn check, SSN, IPv4/IPv6, JWT & API-key patterns, and more).
+- **Detects** PII with modular, composable detectors (email, phone, credit card w/ Luhn check, SSN, IPv4/IPv6, JWT & API-key patterns) plus **heuristic** detectors for dates/DOB, US street addresses, and cued person names — with an **async seam** to plug in a real NER model when you need open-vocabulary name detection.
 - **Redacts** matches into stable, reversible placeholders like `[EMAIL_1]`.
 - **Rehydrates** placeholders back to the original values when you need them (e.g. on the model's response).
 - **Enforces policy** per entity type: `redact`, `block` (reject the request), or `allow`.

@@ -9,6 +9,9 @@ import {
   apiKeyDetector,
 } from "../src/core/detectors/index.js";
 import { creditCardDetector, luhnValid } from "../src/core/detectors/creditCard.js";
+import { dateDetector } from "../src/core/detectors/date.js";
+import { addressDetector } from "../src/core/detectors/address.js";
+import { nameDetector } from "../src/core/detectors/name.js";
 
 describe("emailDetector", () => {
   it("finds a basic email", () => {
@@ -72,6 +75,71 @@ describe("ip detectors", () => {
   });
   it("detects compressed IPv6", () => {
     expect(ipv6Detector.detect("addr 2001:db8::8a2e:370:7334")).toHaveLength(1);
+  });
+});
+
+describe("dateDetector", () => {
+  it.each([
+    "03/14/1990",
+    "3-14-90",
+    "1990-03-14",
+    "March 14, 1990",
+    "14 March 1990",
+    "Mar 14 1990",
+  ])("detects %s", (d) => {
+    const m = dateDetector.detect(`born ${d} in town`);
+    expect(m.length).toBeGreaterThanOrEqual(1);
+    expect(m[0]!.type).toBe("DATE");
+  });
+
+  it("does not match a bare 4-digit year", () => {
+    expect(dateDetector.detect("since 1990 we grew")).toHaveLength(0);
+  });
+
+  it("does not match an SSN or phone shape", () => {
+    expect(dateDetector.detect("ssn 123-45-6789")).toHaveLength(0);
+    expect(dateDetector.detect("call 415-555-0132")).toHaveLength(0);
+  });
+});
+
+describe("addressDetector", () => {
+  it("detects a simple street address", () => {
+    const m = addressDetector.detect("ship to 123 Main St please");
+    expect(m).toHaveLength(1);
+    expect(m[0]!.value).toBe("123 Main St");
+  });
+
+  it("detects an address with a unit", () => {
+    const m = addressDetector.detect("742 Evergreen Terrace, Apt 4B");
+    expect(m).toHaveLength(1);
+    expect(m[0]!.value.startsWith("742 Evergreen Terrace")).toBe(true);
+  });
+
+  it("ignores a number with no street suffix", () => {
+    expect(addressDetector.detect("give me 5 apples")).toHaveLength(0);
+  });
+});
+
+describe("nameDetector", () => {
+  it("detects an honorific + name", () => {
+    const m = nameDetector.detect("please contact Dr. Alice Chen today");
+    expect(m).toHaveLength(1);
+    expect(m[0]!.value).toBe("Dr. Alice Chen");
+  });
+
+  it("detects a name introduced by a cue, capturing only the name", () => {
+    const m = nameDetector.detect("Hi, my name is Bob Lee and I need help");
+    expect(m).toHaveLength(1);
+    expect(m[0]!.value).toBe("Bob Lee");
+  });
+
+  it("detects a first name after I'm", () => {
+    const m = nameDetector.detect("I'm Sarah, nice to meet you");
+    expect(m[0]!.value).toBe("Sarah");
+  });
+
+  it("returns nothing when there is no name cue", () => {
+    expect(nameDetector.detect("the meeting is today at noon")).toHaveLength(0);
   });
 });
 
