@@ -134,6 +134,86 @@ describe("async detector seam", () => {
   });
 });
 
+describe("per-API-key policies", () => {
+  const keyPolicies = JSON.stringify({
+    "blocker-key": { default: "block" },
+    "mask-key": { overrides: { EMAIL: "mask" } },
+  });
+
+  function keyedApp() {
+    return buildApp({
+      PROMPTSHIELD_API_KEYS: "plain-key",
+      PROMPTSHIELD_KEY_POLICIES: keyPolicies,
+    });
+  }
+
+  it("applies a key's default action (block) only for that key", async () => {
+    const app = keyedApp();
+    const blocked = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      headers: { authorization: "Bearer blocker-key" },
+      payload: { text: "ssn 123-45-6789" },
+    });
+    expect(blocked.statusCode).toBe(422);
+
+    const plain = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      headers: { authorization: "Bearer plain-key" },
+      payload: { text: "ssn 123-45-6789" },
+    });
+    expect(plain.statusCode).toBe(200); // server default = redact
+    await app.close();
+  });
+
+  it("applies a key's per-type override (mask email)", async () => {
+    const app = keyedApp();
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      headers: { authorization: "Bearer mask-key" },
+      payload: { text: "reach jane@acme.com" },
+    });
+    expect(res.json().redacted).toBe("reach j***@acme.com");
+    await app.close();
+  });
+
+  it("lets a request-level policy override the key policy", async () => {
+    const app = keyedApp();
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      headers: { authorization: "Bearer mask-key" },
+      payload: { text: "jane@acme.com", policy: { overrides: { EMAIL: "allow" } } },
+    });
+    expect(res.json().redacted).toBe("jane@acme.com");
+    await app.close();
+  });
+
+  it("authorizes a key listed only in PROMPTSHIELD_KEY_POLICIES", async () => {
+    const app = buildApp({
+      PROMPTSHIELD_API_KEYS: "some-other-key",
+      PROMPTSHIELD_KEY_POLICIES: JSON.stringify({ "policy-only-key": { default: "block" } }),
+    });
+    const authed = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      headers: { authorization: "Bearer policy-only-key" },
+      payload: { text: "ssn 123-45-6789" },
+    });
+    expect(authed.statusCode).toBe(422); // authorized AND its block policy applied
+
+    const noKey = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      payload: { text: "hi" },
+    });
+    expect(noKey.statusCode).toBe(401);
+    await app.close();
+  });
+});
+
 describe("auth", () => {
   it("blocks unauthenticated requests when keys are configured", async () => {
     const app = buildApp({ PROMPTSHIELD_API_KEYS: "secret-key-1,secret-key-2" });

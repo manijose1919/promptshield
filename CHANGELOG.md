@@ -15,6 +15,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   needs. Raw PII is never returned on the wire when the vault already holds it.
 
 ### Added
+- **Per-API-key policies** via `PROMPTSHIELD_KEY_POLICIES` (JSON map of key →
+  `{ default?, overrides? }`). The authenticated key's policy layers between the
+  request policy and the server default; keys named there are also valid auth
+  keys. Applies to both `/v1/redact` and the proxy. The auth plugin now returns
+  the matched key (still constant-time, no short-circuit) so routes can scope
+  policy to it.
 - **Async NER seam**: `AsyncDetector` interface + `Redactor.redactAsync` /
   `redactBatchAsync`, wired through `createApp({ asyncDetectors })` and the HTTP
   routes. Ships `createHttpNerDetector` — a reference adapter over any HTTP NER

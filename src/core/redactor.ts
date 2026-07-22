@@ -104,19 +104,23 @@ export class Redactor {
   }
 
   /** Async counterpart of {@link redactBatch} (shared tokenizer across texts). */
-  async redactBatchAsync(texts: string[]): Promise<{
+  async redactBatchAsync(
+    texts: string[],
+    resolveOverride?: (type: EntityType) => Action,
+  ): Promise<{
     redacted: string[];
     entities: ReportedEntity[];
     tokenMap: TokenMap;
     blocked: boolean;
   }> {
+    const resolve = resolveOverride ?? this.resolveAction;
     const tokenizer = new Tokenizer();
     const redacted: string[] = [];
     const entities: ReportedEntity[] = [];
     let blocked = false;
     for (const text of texts) {
       const raw = await this.detectAll(text);
-      const r = this.applyMatches(text, raw, tokenizer, this.resolveAction);
+      const r = this.applyMatches(text, raw, tokenizer, resolve);
       redacted.push(r.redacted);
       entities.push(...r.entities);
       if (r.blocked) blocked = true;

@@ -2,19 +2,22 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { timingSafeEqual } from "node:crypto";
 
 /**
- * Constant-time membership check. A naive `keys.includes(candidate)` leaks
- * timing information about how many leading characters matched; comparing every
- * configured key with timingSafeEqual keeps auth resistant to timing attacks.
+ * Constant-time lookup returning the MATCHED key (or undefined). A naive
+ * `keys.includes(candidate)` leaks timing about how many leading characters
+ * matched; we compare every configured key with timingSafeEqual and never
+ * short-circuit, so timing stays independent of match position. Returning the
+ * matched key (which the client already sent) enables per-key policy without
+ * weakening this guarantee.
  */
-function isAuthorized(candidate: string, keys: string[]): boolean {
+function matchKey(candidate: string, keys: string[]): string | undefined {
   const cand = Buffer.from(candidate);
-  let ok = false;
+  let matched: string | undefined;
   for (const key of keys) {
     const k = Buffer.from(key);
     // Length must match for timingSafeEqual; compare against same-length buffer.
-    if (k.length === cand.length && timingSafeEqual(k, cand)) ok = true;
+    if (k.length === cand.length && timingSafeEqual(k, cand)) matched = key;
   }
-  return ok;
+  return matched;
 }
 
 /**
@@ -41,8 +44,18 @@ export function registerAuth(app: FastifyInstance, apiKeys: string[]): void {
     const candidate =
       token || (typeof apiKeyHeader === "string" ? apiKeyHeader : "");
 
-    if (!candidate || !isAuthorized(candidate, apiKeys)) {
+    const matched = candidate ? matchKey(candidate, apiKeys) : undefined;
+    if (!matched) {
       return reply.code(401).send({ error: "unauthorized", message: "Missing or invalid API key." });
     }
+    // Expose the authenticated key so routes can apply its per-key policy.
+    req.promptshieldApiKey = matched;
   });
+}
+
+declare module "fastify" {
+  interface FastifyRequest {
+    /** The API key this request authenticated with (unset when auth is off). */
+    promptshieldApiKey?: string;
+  }
 }

@@ -9,6 +9,12 @@ export interface PolicyConfig {
   overrides?: PolicyOverrides;
 }
 
+/** A policy scoped to something narrower than the server (a request, an API key). */
+export interface ScopedPolicy {
+  default?: Action;
+  overrides?: PolicyOverrides;
+}
+
 /**
  * Resolves the policy action for a given entity type. Small, immutable, and
  * pure so it can be shared safely across concurrent requests.
@@ -32,16 +38,24 @@ export class PolicyEngine {
   }
 
   /**
-   * Build a resolver that layers per-request policy over this engine.
-   * Precedence (highest first):
-   *   request override for the type → request default → server policy.
-   * A request that supplies neither behaves identically to `resolver()`.
+   * Build a resolver that layers per-request and (optionally) per-API-key policy
+   * over this engine. Precedence (highest first):
+   *   request override → request default →
+   *   key override → key default →
+   *   server override → server default.
+   * Any layer that supplies nothing is skipped, so passing no arguments behaves
+   * identically to `resolver()`.
    */
   resolverWith(
     requestDefault?: Action,
     requestOverrides?: PolicyOverrides,
+    keyPolicy?: ScopedPolicy,
   ): (type: EntityType) => Action {
     return (type) =>
-      requestOverrides?.[type] ?? requestDefault ?? this.resolve(type);
+      requestOverrides?.[type] ??
+      requestDefault ??
+      keyPolicy?.overrides?.[type] ??
+      keyPolicy?.default ??
+      this.resolve(type);
   }
 }

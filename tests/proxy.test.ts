@@ -289,6 +289,29 @@ describe("POST /v1/chat/completions (proxy)", () => {
     await app.close();
   });
 
+  it("applies the authenticated key's policy (block) to a proxied request", async () => {
+    const config = loadConfig({
+      LOG_LEVEL: "silent",
+      AUDIT_SINK: "none",
+      UPSTREAM_API_KEY: "upstream-secret",
+      UPSTREAM_BASE_URL: "https://fake.upstream/v1",
+      PROMPTSHIELD_API_KEYS: "plain-key",
+      PROMPTSHIELD_KEY_POLICIES: JSON.stringify({ "blocker-key": { default: "block" } }),
+    });
+    const app = createApp(config, {
+      fetchImpl: (async () => new Response("{}")) as unknown as typeof fetch,
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      headers: { authorization: "Bearer blocker-key" },
+      payload: { model: "gpt-4o", messages: [{ role: "user", content: "ssn 123-45-6789" }] },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe("blocked");
+    await app.close();
+  });
+
   it("returns 500 when upstream key is unset", async () => {
     const config = loadConfig({ LOG_LEVEL: "silent", AUDIT_SINK: "none" });
     const app = createApp(config, {

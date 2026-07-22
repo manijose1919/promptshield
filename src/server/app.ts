@@ -61,14 +61,29 @@ export function createApp(
 
   const metrics = new Metrics();
 
-  registerAuth(app, config.apiKeys);
+  // Keys named only in the per-key policy map are still valid credentials, so
+  // integrators don't have to list every key twice.
+  const authKeys = Array.from(
+    new Set([...config.apiKeys, ...Object.keys(config.keyPolicies)]),
+  );
+
+  registerAuth(app, authKeys);
   registerHealthRoutes(app);
   registerMetricsRoute(app, metrics);
-  registerRedactRoutes(app, { redactor, vault, audit, metrics, policy });
+  registerRedactRoutes(app, {
+    redactor,
+    vault,
+    audit,
+    metrics,
+    policy,
+    keyPolicies: config.keyPolicies,
+  });
   registerProxyRoutes(app, {
     redactor,
     audit,
     metrics,
+    policy,
+    keyPolicies: config.keyPolicies,
     fetchImpl: overrides.fetchImpl ?? fetch,
     upstreamBaseUrl: config.upstreamBaseUrl,
     upstreamApiKey: config.upstreamApiKey,

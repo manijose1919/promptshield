@@ -5,7 +5,7 @@ import type { AuditSink } from "../../core/audit.js";
 import { summarizeEntities } from "../../core/audit.js";
 import type { TokenMap } from "../../core/types.js";
 import type { Metrics } from "../metrics.js";
-import type { PolicyEngine } from "../../core/policy.js";
+import type { PolicyEngine, ScopedPolicy } from "../../core/policy.js";
 import type { Action, EntityType } from "../../core/types.js";
 
 export interface RedactRouteDeps {
@@ -14,6 +14,7 @@ export interface RedactRouteDeps {
   audit: AuditSink;
   metrics: Metrics;
   policy: PolicyEngine;
+  keyPolicies: Record<string, ScopedPolicy>;
 }
 
 const ACTIONS: Action[] = ["redact", "mask", "block", "allow"];
@@ -83,7 +84,7 @@ export function registerRedactRoutes(
   app: FastifyInstance,
   deps: RedactRouteDeps,
 ): void {
-  const { redactor, vault, audit, metrics, policy } = deps;
+  const { redactor, vault, audit, metrics, policy, keyPolicies } = deps;
 
   app.post<{
     Body: { text: string; store_token_map?: boolean; policy?: RequestPolicy };
@@ -92,9 +93,13 @@ export function registerRedactRoutes(
     { schema: { body: redactBodySchema } },
     async (req, reply) => {
       const { text, store_token_map, policy: reqPolicy } = req.body;
-      const resolver = reqPolicy
-        ? policy.resolverWith(reqPolicy.default, reqPolicy.overrides)
+      const keyPolicy = req.promptshieldApiKey
+        ? keyPolicies[req.promptshieldApiKey]
         : undefined;
+      const resolver =
+        reqPolicy || keyPolicy
+          ? policy.resolverWith(reqPolicy?.default, reqPolicy?.overrides, keyPolicy)
+          : undefined;
       const result = await redactor.redactAsync(text, resolver);
 
       metrics.recordRequest("/v1/redact");

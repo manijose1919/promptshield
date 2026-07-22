@@ -145,7 +145,30 @@ POST /v1/redact
 // → "j***@acme.com and [PHONE_1]"
 ```
 
-Precedence: request override → request default → server override → server default.
+### Per-API-key policies
+
+Different tenants often need different rules. Map an API key to its own policy
+with `PROMPTSHIELD_KEY_POLICIES` — a JSON object keyed by API key. Keys named
+here are **also** accepted as valid auth keys, so you don't list them twice:
+
+```bash
+PROMPTSHIELD_KEY_POLICIES='{
+  "tenant-a-key": { "default": "block" },
+  "tenant-b-key": { "overrides": { "EMAIL": "mask" } }
+}'
+```
+
+The authenticated key's policy layers in between the request policy and the
+server default. Full precedence (highest first):
+
+```
+request override → request default →
+key override → key default →
+server override → server default
+```
+
+So a request can still override its key's policy, and a key still overrides the
+server default — each layer only fills gaps the layer above left open.
 
 ## Observability
 

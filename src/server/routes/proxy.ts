@@ -5,12 +5,15 @@ import type { AuditSink } from "../../core/audit.js";
 import { summarizeEntities } from "../../core/audit.js";
 import type { TokenMap } from "../../core/types.js";
 import { StreamRehydrator } from "../../core/streamRehydrator.js";
+import type { PolicyEngine, ScopedPolicy } from "../../core/policy.js";
 import type { Metrics } from "../metrics.js";
 
 export interface ProxyRouteDeps {
   redactor: Redactor;
   audit: AuditSink;
   metrics: Metrics;
+  policy: PolicyEngine;
+  keyPolicies: Record<string, ScopedPolicy>;
   fetchImpl: typeof fetch;
   upstreamBaseUrl: string;
   upstreamApiKey: string;
@@ -75,8 +78,16 @@ export function registerProxyRoutes(
       }
     }
 
+    // Apply the authenticated key's policy (if any) to this proxy request.
+    const keyPolicy = req.promptshieldApiKey
+      ? deps.keyPolicies[req.promptshieldApiKey]
+      : undefined;
+    const resolver = keyPolicy
+      ? deps.policy.resolverWith(undefined, undefined, keyPolicy)
+      : undefined;
+
     const { redacted, tokenMap, blocked, entities } =
-      await deps.redactor.redactBatchAsync(texts);
+      await deps.redactor.redactBatchAsync(texts, resolver);
 
     deps.metrics.recordRequest("/v1/chat/completions");
     deps.metrics.recordRedaction("/v1/chat/completions", entities, blocked);

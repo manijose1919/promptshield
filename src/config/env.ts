@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CustomRuleSpec } from "../core/detectors/custom.js";
+import type { ScopedPolicy } from "../core/policy.js";
 
 const CustomRuleSchema = z.object({
   name: z.string().min(1),
@@ -39,7 +40,32 @@ const EnvSchema = z.object({
 
   /** JSON array of custom rules, e.g. [{"name":"employee id","pattern":"EMP-\\d{5}"}] */
   PROMPTSHIELD_CUSTOM_RULES: z.string().default(""),
+
+  /** JSON object mapping an API key to its policy, e.g.
+   *  {"tenant-a-key":{"default":"block"},"tenant-b-key":{"overrides":{"EMAIL":"mask"}}}
+   *  Keys named here are also accepted as valid auth keys. */
+  PROMPTSHIELD_KEY_POLICIES: z.string().default(""),
 });
+
+const ActionEnum = z.enum(["redact", "mask", "block", "allow"]);
+const ScopedPolicySchema = z.object({
+  default: ActionEnum.optional(),
+  overrides: z.record(z.string(), ActionEnum).optional(),
+});
+const KeyPoliciesSchema = z.record(z.string().min(1), ScopedPolicySchema);
+
+/** Parse and validate the per-API-key policy map. Fails fast on bad config. */
+function parseKeyPolicies(raw: string): Record<string, ScopedPolicy> {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return {};
+  let json: unknown;
+  try {
+    json = JSON.parse(trimmed);
+  } catch {
+    throw new Error("PROMPTSHIELD_KEY_POLICIES is not valid JSON.");
+  }
+  return KeyPoliciesSchema.parse(json) as Record<string, ScopedPolicy>;
+}
 
 /** Parse and validate the custom-rules JSON blob. Fails fast on bad config. */
 function parseCustomRules(raw: string): CustomRuleSpec[] {
@@ -66,6 +92,7 @@ export type AppConfig = {
   upstreamApiKey: string;
   rehydrateResponses: boolean;
   customRules: CustomRuleSpec[];
+  keyPolicies: Record<string, ScopedPolicy>;
 };
 
 /**
@@ -89,5 +116,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     upstreamApiKey: parsed.UPSTREAM_API_KEY,
     rehydrateResponses: parsed.REHYDRATE_RESPONSES,
     customRules: parseCustomRules(parsed.PROMPTSHIELD_CUSTOM_RULES),
+    keyPolicies: parseKeyPolicies(parsed.PROMPTSHIELD_KEY_POLICIES),
   };
 }

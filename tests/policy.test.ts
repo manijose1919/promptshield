@@ -16,6 +16,22 @@ describe("PolicyEngine.resolverWith precedence", () => {
     expect(resolve("EMAIL")).toBe("mask"); // request default beats server override
   });
 
+  it("layers a key policy between request policy and server policy", () => {
+    const engine = new PolicyEngine({
+      defaultAction: "redact",
+      overrides: { SSN: "block" },
+    });
+    // Key policy: default mask, override PHONE->allow. Request: override EMAIL->block.
+    const resolve = engine.resolverWith(undefined, { EMAIL: "block" }, {
+      default: "mask",
+      overrides: { PHONE: "allow" },
+    });
+    expect(resolve("EMAIL")).toBe("block"); // request override wins
+    expect(resolve("PHONE")).toBe("allow"); // key override beats key/server
+    expect(resolve("IPV4")).toBe("mask"); // key default beats server default
+    expect(resolve("SSN")).toBe("mask"); // key default beats server override
+  });
+
   it("falls back to server policy when request specifies nothing", () => {
     const engine = new PolicyEngine({
       defaultAction: "redact",
