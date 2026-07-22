@@ -115,11 +115,17 @@ export function registerRedactRoutes(
         });
       }
 
-      const tokenMapId = store_token_map ? vault.store(result.tokenMap) : undefined;
+      // Two mutually exclusive rehydration modes, so raw PII is never returned
+      // when the vault already holds it:
+      //  - vault path (store_token_map): return an opaque id only.
+      //  - stateless path (default): return the inline map the caller needs.
+      const tokenMapId = store_token_map
+        ? vault.store(result.tokenMap)
+        : undefined;
       return reply.send({
         redacted: result.redacted,
         entities: result.entities.map(stripRaw),
-        token_map: result.tokenMap,
+        token_map: store_token_map ? undefined : result.tokenMap,
         token_map_id: tokenMapId,
         blocked: false,
       });

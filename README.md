@@ -62,9 +62,19 @@ curl -s http://localhost:8787/v1/redact \
     { "type": "EMAIL", "placeholder": "[EMAIL_1]", "action": "redact" },
     { "type": "PHONE", "placeholder": "[PHONE_1]", "action": "redact" }
   ],
-  "token_map_id": "…"
+  "token_map": { "entries": { "[EMAIL_1]": "jane.doe@acme.com", "[PHONE_1]": "415-555-0132" } }
 }
 ```
+
+### Two rehydration modes (stateless vs. vaulted)
+
+`POST /v1/redact` returns exactly one of two things so raw PII never travels
+back over the wire redundantly:
+
+| Request | Response | Use when |
+| --- | --- | --- |
+| default | inline `token_map` (holds the originals) | caller rehydrates client-side |
+| `"store_token_map": true` | opaque `token_map_id` only | server holds the map; rehydrate later by id |
 
 ---
 

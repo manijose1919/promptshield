@@ -65,8 +65,10 @@ describe("POST /v1/redact", () => {
       url: "/v1/redact",
       payload: { text: "call 415-555-0132", store_token_map: true },
     });
-    const { redacted, token_map_id } = redactRes.json();
+    const { redacted, token_map_id, token_map } = redactRes.json();
     expect(token_map_id).toBeTruthy();
+    // Vault path must NOT also echo raw PII back inline.
+    expect(token_map).toBeUndefined();
 
     const rehydrateRes = await app.inject({
       method: "POST",

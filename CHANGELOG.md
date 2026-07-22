@@ -5,6 +5,15 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased] — Phase 3 features
 
+### Changed
+- **Proxy rehydration** now also restores placeholders inside multi-part
+  (array) message content and tool/function call `arguments` — not just string
+  content. Closes a silent gap for agentic / function-calling callers.
+- **`POST /v1/redact` no longer echoes the raw `token_map` inline when
+  `store_token_map` is set.** The vault path returns an opaque `token_map_id`
+  only; the stateless path (default) still returns the inline map the caller
+  needs. Raw PII is never returned on the wire when the vault already holds it.
+
 ### Added
 - **Custom detection rules** from `PROMPTSHIELD_CUSTOM_RULES` (regex or literal
   terms), validated at startup, rendered with named placeholders.
