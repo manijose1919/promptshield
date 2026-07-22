@@ -101,6 +101,39 @@ describe("POST /v1/redact", () => {
   });
 });
 
+describe("async detector seam", () => {
+  it("createApp consults injected async detectors on /v1/redact", async () => {
+    const config = loadConfig({ LOG_LEVEL: "silent", AUDIT_SINK: "none" });
+    const app = createApp(config, {
+      asyncDetectors: [
+        {
+          type: "NAME",
+          async detectAsync(text: string) {
+            const out = [];
+            for (const m of text.matchAll(/\bZephyr\b/g)) {
+              const start = m.index ?? 0;
+              out.push({
+                type: "NAME" as const,
+                start,
+                end: start + m[0].length,
+                value: m[0],
+              });
+            }
+            return out;
+          },
+        },
+      ],
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/redact",
+      payload: { text: "hi Zephyr" },
+    });
+    expect(res.json().redacted).toBe("hi [NAME_1]");
+    await app.close();
+  });
+});
+
 describe("auth", () => {
   it("blocks unauthenticated requests when keys are configured", async () => {
     const app = buildApp({ PROMPTSHIELD_API_KEYS: "secret-key-1,secret-key-2" });

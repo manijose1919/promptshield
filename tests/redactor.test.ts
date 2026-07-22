@@ -1,6 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { Redactor, resolveOverlaps } from "../src/core/redactor.js";
-import type { Match } from "../src/core/types.js";
+import type { AsyncDetector, Match } from "../src/core/types.js";
+
+/** A fake NER-style async detector that flags a made-up name only it knows. */
+const zephyrNer: AsyncDetector = {
+  type: "NAME",
+  async detectAsync(text: string): Promise<Match[]> {
+    const out: Match[] = [];
+    for (const m of text.matchAll(/\bZephyr\b/g)) {
+      const start = m.index ?? 0;
+      out.push({ type: "NAME", start, end: start + m[0].length, value: m[0] });
+    }
+    return out;
+  },
+};
 
 describe("Redactor.redact", () => {
   it("redacts multiple entity types and reports them", () => {
@@ -46,6 +59,28 @@ describe("Redactor.redact", () => {
     const text = emails.join(" ");
     const res = r.redact(text);
     expect(r.rehydrate(res.redacted, res.tokenMap)).toBe(text);
+  });
+});
+
+describe("Redactor.redactAsync", () => {
+  it("consults async detectors and redacts what only they find", async () => {
+    const r = new Redactor({ asyncDetectors: [zephyrNer] });
+    const res = await r.redactAsync("hello Zephyr and jane@acme.com");
+    // Zephyr has no honorific/cue, so only the async NER catches it.
+    expect(res.redacted).toBe("hello [NAME_1] and [EMAIL_1]");
+  });
+
+  it("with no async detectors, matches sync redact() exactly", async () => {
+    const r = new Redactor();
+    const text = "email jane@acme.com or call 415-555-0132";
+    const asyncRes = await r.redactAsync(text);
+    expect(asyncRes.redacted).toBe(r.redact(text).redacted);
+  });
+
+  it("redactBatchAsync shares placeholders across texts", async () => {
+    const r = new Redactor({ asyncDetectors: [zephyrNer] });
+    const res = await r.redactBatchAsync(["Zephyr here", "and Zephyr again"]);
+    expect(res.redacted).toEqual(["[NAME_1] here", "and [NAME_1] again"]);
   });
 });
 

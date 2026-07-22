@@ -191,6 +191,28 @@ const app = createApp(config, { vault });
 The `AsyncKeyValueStore` contract is intentionally tiny (`get` + `set`), so any
 networked store works and PromptShield's core keeps its zero-dependency footprint.
 
+## Model-backed detection (NER seam)
+
+Regex and heuristics can't catch a **bare, uncued person name** ("call Zephyr")
+— that needs a model. Rather than bake one in (and forfeit the zero-dependency
+core), PromptShield exposes an async `AsyncDetector` seam. Wire any NER service
+in and it's consulted alongside the built-in detectors:
+
+```ts
+import { createApp, createHttpNerDetector } from "promptshield/server";
+
+const ner = createHttpNerDetector({
+  url: "http://localhost:9000/detect", // your NER service: {text} -> {spans:[{start,end}]}
+  entityType: "NAME",
+  onError: "empty", // degrade to regex-only if the service is down (or "throw")
+});
+const app = createApp(config, { asyncDetectors: [ner] });
+```
+
+Or in-process via the library: `new Redactor({ asyncDetectors: [ner] })` and call
+`redactAsync()` / `redactBatchAsync()`. The synchronous `redact()` path ignores
+async detectors, so nothing that doesn't opt in pays the latency.
+
 ## Configuration
 
 All configuration is via environment variables — see [`.env.example`](./.env.example). Secrets (provider keys, client keys) are **never** hardcoded.

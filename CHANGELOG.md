@@ -15,6 +15,12 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   needs. Raw PII is never returned on the wire when the vault already holds it.
 
 ### Added
+- **Async NER seam**: `AsyncDetector` interface + `Redactor.redactAsync` /
+  `redactBatchAsync`, wired through `createApp({ asyncDetectors })` and the HTTP
+  routes. Ships `createHttpNerDetector` — a reference adapter over any HTTP NER
+  service — with fail-open/fail-closed handling and span-bounds guarding. Adds
+  open-vocabulary detection (bare names) with no dependency in core; the sync
+  `redact()` path is unchanged and pays no latency.
 - **Heuristic detectors** for three high-value HIPAA/GDPR identifiers that
   regex-exact detectors miss: `DATE` (incl. DOB — numeric/ISO/month-name forms,
   not bare years), `ADDRESS` (US street addresses), and `NAME` (person names,

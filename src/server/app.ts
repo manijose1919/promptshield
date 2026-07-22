@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppConfig } from "../config/env.js";
 import { Redactor } from "../core/redactor.js";
+import type { AsyncDetector } from "../core/types.js";
 import { defaultDetectors } from "../core/detectors/index.js";
 import { buildCustomDetectors } from "../core/detectors/custom.js";
 import { PolicyEngine } from "../core/policy.js";
@@ -17,6 +18,11 @@ export interface AppOverrides {
   redactor?: Redactor;
   vault?: TokenVault;
   audit?: AuditSink;
+  /**
+   * Model-backed detectors (e.g. an NER service) consulted on the async path.
+   * Wired into the default Redactor unless a `redactor` override is supplied.
+   */
+  asyncDetectors?: AsyncDetector[];
   /** Injectable fetch for the proxy route (added in Layer 4) and tests. */
   fetchImpl?: typeof fetch;
 }
@@ -44,7 +50,11 @@ export function createApp(
   ];
   const redactor =
     overrides.redactor ??
-    new Redactor({ detectors, resolveAction: policy.resolver() });
+    new Redactor({
+      detectors,
+      asyncDetectors: overrides.asyncDetectors,
+      resolveAction: policy.resolver(),
+    });
   const vault = overrides.vault ?? new InMemoryTokenVault();
   const audit =
     overrides.audit ?? createAuditSink(config.auditSink, config.auditFile);

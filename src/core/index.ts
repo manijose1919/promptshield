@@ -10,6 +10,8 @@ export {
   buildCustomDetectors,
 } from "./detectors/custom.js";
 export type { CustomRuleSpec } from "./detectors/custom.js";
+export { createHttpNerDetector } from "./detectors/ner.js";
+export type { HttpNerOptions } from "./detectors/ner.js";
 export { normalizeLabel } from "./tokenizer.js";
 export { maskValue } from "./mask.js";
 export { PolicyEngine } from "./policy.js";

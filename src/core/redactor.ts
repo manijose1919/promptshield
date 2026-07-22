@@ -1,5 +1,6 @@
 import type {
   Action,
+  AsyncDetector,
   Detector,
   EntityType,
   Match,
@@ -14,6 +15,11 @@ import { maskValue } from "./mask.js";
 export interface RedactorOptions {
   /** Detector set to use. Defaults to the built-in registry. */
   detectors?: Detector[];
+  /**
+   * Optional model-backed detectors, consulted only by the async methods
+   * (`redactAsync` / `redactBatchAsync`). The sync API ignores them.
+   */
+  asyncDetectors?: AsyncDetector[];
   /** Resolve the policy action for an entity type. Defaults to always redact. */
   resolveAction?: (type: EntityType) => Action;
 }
@@ -25,10 +31,12 @@ export interface RedactorOptions {
  */
 export class Redactor {
   private readonly detectors: Detector[];
+  private readonly asyncDetectors: AsyncDetector[];
   private readonly resolveAction: (type: EntityType) => Action;
 
   constructor(options: RedactorOptions = {}) {
     this.detectors = options.detectors ?? defaultDetectors;
+    this.asyncDetectors = options.asyncDetectors ?? [];
     this.resolveAction = options.resolveAction ?? (() => "redact");
   }
 
@@ -75,14 +83,83 @@ export class Redactor {
     return { redacted, entities, tokenMap: tokenizer.tokenMap(), blocked };
   }
 
+  /**
+   * Detect PII using BOTH sync and async detectors. Behaves exactly like
+   * {@link redact} when no async detectors are configured. Use this to consult
+   * a model-backed detector (e.g. an NER service) wired via `asyncDetectors`.
+   */
+  async redactAsync(
+    text: string,
+    resolveOverride?: (type: EntityType) => Action,
+  ): Promise<RedactionResult> {
+    const tokenizer = new Tokenizer();
+    const raw = await this.detectAll(text);
+    const { redacted, entities, blocked } = this.applyMatches(
+      text,
+      raw,
+      tokenizer,
+      resolveOverride ?? this.resolveAction,
+    );
+    return { redacted, entities, tokenMap: tokenizer.tokenMap(), blocked };
+  }
+
+  /** Async counterpart of {@link redactBatch} (shared tokenizer across texts). */
+  async redactBatchAsync(texts: string[]): Promise<{
+    redacted: string[];
+    entities: ReportedEntity[];
+    tokenMap: TokenMap;
+    blocked: boolean;
+  }> {
+    const tokenizer = new Tokenizer();
+    const redacted: string[] = [];
+    const entities: ReportedEntity[] = [];
+    let blocked = false;
+    for (const text of texts) {
+      const raw = await this.detectAll(text);
+      const r = this.applyMatches(text, raw, tokenizer, this.resolveAction);
+      redacted.push(r.redacted);
+      entities.push(...r.entities);
+      if (r.blocked) blocked = true;
+    }
+    return { redacted, entities, tokenMap: tokenizer.tokenMap(), blocked };
+  }
+
+  /** Run sync detectors plus (awaited, parallel) async detectors. */
+  private async detectAll(text: string): Promise<Match[]> {
+    const sync = this.detectors.flatMap((d) => d.detect(text));
+    if (this.asyncDetectors.length === 0) return sync;
+    const async = await Promise.all(
+      this.asyncDetectors.map((d) => d.detectAsync(text)),
+    );
+    return [...sync, ...async.flat()];
+  }
+
   /** Core redaction pass against a caller-supplied tokenizer. */
   private redactWith(
     text: string,
     tokenizer: Tokenizer,
     resolveOverride?: (type: EntityType) => Action,
   ): { redacted: string; entities: ReportedEntity[]; blocked: boolean } {
-    const resolve = resolveOverride ?? this.resolveAction;
     const raw = this.detectors.flatMap((d) => d.detect(text));
+    return this.applyMatches(
+      text,
+      raw,
+      tokenizer,
+      resolveOverride ?? this.resolveAction,
+    );
+  }
+
+  /**
+   * Resolve overlaps among `raw`, then rebuild `text` left-to-right applying the
+   * policy action per match against the shared `tokenizer`. This is the single
+   * substitution engine behind both the sync and async detection paths.
+   */
+  private applyMatches(
+    text: string,
+    raw: Match[],
+    tokenizer: Tokenizer,
+    resolve: (type: EntityType) => Action,
+  ): { redacted: string; entities: ReportedEntity[]; blocked: boolean } {
     const chosen = resolveOverlaps(raw);
 
     const entities: ReportedEntity[] = [];

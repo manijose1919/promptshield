@@ -48,6 +48,18 @@ export interface Detector {
   detect(text: string): Match[];
 }
 
+/**
+ * An asynchronous detector — the seam for model-backed detection (e.g. an NER
+ * service for open-vocabulary names) that a synchronous, regex-only pipeline
+ * can't provide. Consulted only via {@link RedactionResult}'s async path
+ * (`Redactor.redactAsync` / `redactBatchAsync`); the sync API ignores it, so
+ * the zero-dependency default keeps working unchanged.
+ */
+export interface AsyncDetector {
+  readonly type: EntityType;
+  detectAsync(text: string): Promise<Match[]>;
+}
+
 /** A reversible mapping from a placeholder token back to its original value. */
 export interface TokenMap {
   /** placeholder -> original value */

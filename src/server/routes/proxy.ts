@@ -76,7 +76,7 @@ export function registerProxyRoutes(
     }
 
     const { redacted, tokenMap, blocked, entities } =
-      deps.redactor.redactBatch(texts);
+      await deps.redactor.redactBatchAsync(texts);
 
     deps.metrics.recordRequest("/v1/chat/completions");
     deps.metrics.recordRedaction("/v1/chat/completions", entities, blocked);

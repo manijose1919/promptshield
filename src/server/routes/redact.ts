@@ -95,7 +95,7 @@ export function registerRedactRoutes(
       const resolver = reqPolicy
         ? policy.resolverWith(reqPolicy.default, reqPolicy.overrides)
         : undefined;
-      const result = redactor.redact(text, resolver);
+      const result = await redactor.redactAsync(text, resolver);
 
       metrics.recordRequest("/v1/redact");
       metrics.recordRedaction("/v1/redact", result.entities, result.blocked);
