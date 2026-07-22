@@ -214,6 +214,54 @@ describe("per-API-key policies", () => {
   });
 });
 
+describe("rate limiting", () => {
+  it("returns 429 with Retry-After once the per-caller budget is spent", async () => {
+    const app = buildApp({ PROMPTSHIELD_RATE_LIMIT: "2" });
+    const ok1 = await app.inject({ method: "POST", url: "/v1/redact", payload: { text: "hi" } });
+    const ok2 = await app.inject({ method: "POST", url: "/v1/redact", payload: { text: "hi" } });
+    const limited = await app.inject({ method: "POST", url: "/v1/redact", payload: { text: "hi" } });
+    expect(ok1.statusCode).toBe(200);
+    expect(ok2.statusCode).toBe(200);
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json().error).toBe("rate_limited");
+    expect(Number(limited.headers["retry-after"])).toBeGreaterThan(0);
+    await app.close();
+  });
+
+  it("budgets each API key separately", async () => {
+    const app = buildApp({
+      PROMPTSHIELD_API_KEYS: "k1,k2",
+      PROMPTSHIELD_RATE_LIMIT: "1",
+    });
+    const a1 = await app.inject({
+      method: "POST", url: "/v1/redact",
+      headers: { authorization: "Bearer k1" }, payload: { text: "hi" },
+    });
+    const a2 = await app.inject({
+      method: "POST", url: "/v1/redact",
+      headers: { authorization: "Bearer k1" }, payload: { text: "hi" },
+    });
+    const b1 = await app.inject({
+      method: "POST", url: "/v1/redact",
+      headers: { authorization: "Bearer k2" }, payload: { text: "hi" },
+    });
+    expect(a1.statusCode).toBe(200);
+    expect(a2.statusCode).toBe(429); // k1 exhausted
+    expect(b1.statusCode).toBe(200); // k2 has its own budget
+    await app.close();
+  });
+
+  it("never rate-limits public routes", async () => {
+    const app = buildApp({ PROMPTSHIELD_RATE_LIMIT: "1" });
+    await app.inject({ method: "GET", url: "/health" });
+    const h = await app.inject({ method: "GET", url: "/health" });
+    const m = await app.inject({ method: "GET", url: "/metrics" });
+    expect(h.statusCode).toBe(200);
+    expect(m.statusCode).toBe(200);
+    await app.close();
+  });
+});
+
 describe("auth", () => {
   it("blocks unauthenticated requests when keys are configured", async () => {
     const app = buildApp({ PROMPTSHIELD_API_KEYS: "secret-key-1,secret-key-2" });

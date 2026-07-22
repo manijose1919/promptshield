@@ -31,6 +31,11 @@ const EnvSchema = z.object({
 
   DEFAULT_ACTION: z.enum(["redact", "mask", "block", "allow"]).default("redact"),
 
+  /** Max requests per caller (API key, else client IP) per window. 0 = off. */
+  PROMPTSHIELD_RATE_LIMIT: z.coerce.number().int().nonnegative().default(0),
+  /** Rate-limit window length, in seconds. */
+  PROMPTSHIELD_RATE_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+
   AUDIT_SINK: z.enum(["none", "stdout", "file"]).default("file"),
   AUDIT_FILE: z.string().default("./data/audit.jsonl"),
 
@@ -88,6 +93,8 @@ export type AppConfig = {
   defaultAction: "redact" | "mask" | "block" | "allow";
   auditSink: "none" | "stdout" | "file";
   auditFile: string;
+  rateLimit: number;
+  rateWindowSec: number;
   upstreamBaseUrl: string;
   upstreamApiKey: string;
   rehydrateResponses: boolean;
@@ -112,6 +119,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     defaultAction: parsed.DEFAULT_ACTION,
     auditSink: parsed.AUDIT_SINK,
     auditFile: parsed.AUDIT_FILE,
+    rateLimit: parsed.PROMPTSHIELD_RATE_LIMIT,
+    rateWindowSec: parsed.PROMPTSHIELD_RATE_WINDOW_SEC,
     upstreamBaseUrl: parsed.UPSTREAM_BASE_URL.replace(/\/+$/, ""),
     upstreamApiKey: parsed.UPSTREAM_API_KEY,
     rehydrateResponses: parsed.REHYDRATE_RESPONSES,

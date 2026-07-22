@@ -170,13 +170,28 @@ server override → server default
 So a request can still override its key's policy, and a key still overrides the
 server default — each layer only fills gaps the layer above left open.
 
+## Rate limiting
+
+Protect your upstream (and your bill) with a per-caller token bucket. Set
+`PROMPTSHIELD_RATE_LIMIT` to the max requests per window and
+`PROMPTSHIELD_RATE_WINDOW_SEC` to the window length (default 60s); `0` disables
+it. Callers are keyed by **API key** when auth is on, else by **client IP**.
+Over-budget requests get `429` with a `Retry-After` header. Public routes
+(`/health`, `/metrics`) are never limited.
+
+```bash
+PROMPTSHIELD_RATE_LIMIT=100   # 100 requests…
+PROMPTSHIELD_RATE_WINDOW_SEC=60  # …per 60s per caller, bursting up to 100
+```
+
 ## Observability
 
-`GET /metrics` exposes Prometheus counters (public, no auth) — requests by route, entities by type & action, and blocks:
+`GET /metrics` exposes Prometheus counters (public, no auth) — requests by route, entities by type & action, blocks, and rate-limit rejections:
 
 ```
 promptshield_entities_total{action="redact",type="EMAIL"} 42
 promptshield_blocked_total{route="/v1/redact"} 3
+promptshield_rate_limited_total{route="/v1/redact"} 7
 ```
 
 ## Custom detection rules

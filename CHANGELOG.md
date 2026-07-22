@@ -15,6 +15,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   needs. Raw PII is never returned on the wire when the vault already holds it.
 
 ### Added
+- **Rate limiting**: per-caller token bucket (`PROMPTSHIELD_RATE_LIMIT` /
+  `PROMPTSHIELD_RATE_WINDOW_SEC`, `0` = off). Keyed by API key when auth is on,
+  else client IP; over-budget requests get `429` + `Retry-After`. Public routes
+  are exempt. Adds a `promptshield_rate_limited_total` metric. The limiter is a
+  pure, clock-injectable `RateLimiter` with bounded memory (idle-bucket purge).
 - **Per-API-key policies** via `PROMPTSHIELD_KEY_POLICIES` (JSON map of key →
   `{ default?, overrides? }`). The authenticated key's policy layers between the
   request policy and the server default; keys named there are also valid auth

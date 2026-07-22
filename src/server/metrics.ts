@@ -63,6 +63,15 @@ export class Metrics {
     }
   }
 
+  /** Record a request rejected by the rate limiter. */
+  recordRateLimited(route: string): void {
+    this.inc(
+      "promptshield_rate_limited_total",
+      "Requests rejected by rate limiting.",
+      { route },
+    );
+  }
+
   /** Render all counters in Prometheus text exposition format (v0.0.4). */
   render(): string {
     const lines: string[] = [];
