@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
+import { Readable } from "node:stream";
 import type { Redactor } from "../../core/redactor.js";
 import type { AuditSink } from "../../core/audit.js";
 import { summarizeEntities } from "../../core/audit.js";
 import type { TokenMap } from "../../core/types.js";
+import { StreamRehydrator } from "../../core/streamRehydrator.js";
 import type { Metrics } from "../metrics.js";
 
 export interface ProxyRouteDeps {
@@ -39,13 +41,6 @@ export function registerProxyRoutes(
   app.post<{ Body: ChatBody }>("/v1/chat/completions", async (req, reply) => {
     const body = req.body ?? {};
 
-    if (body.stream) {
-      return reply.code(400).send({
-        error: "streaming_unsupported",
-        message:
-          "Streaming responses are not yet supported by the redaction proxy. Set stream:false.",
-      });
-    }
     if (!Array.isArray(body.messages)) {
       return reply.code(400).send({
         error: "invalid_request",
@@ -125,6 +120,24 @@ export function registerProxyRoutes(
       });
     }
 
+    // Streaming path: relay the upstream SSE stream, rehydrating placeholders
+    // across chunk boundaries as they flow to the client.
+    const contentType = upstreamRes.headers.get("content-type") ?? "";
+    if (
+      body.stream &&
+      upstreamRes.body &&
+      contentType.includes("text/event-stream")
+    ) {
+      reply.header("content-type", "text/event-stream");
+      reply.header("cache-control", "no-cache");
+      reply.header("connection", "keep-alive");
+      return reply.send(
+        Readable.from(
+          relaySse(upstreamRes.body, tokenMap, deps.rehydrateResponses),
+        ),
+      );
+    }
+
     const text = await upstreamRes.text();
     let payload: unknown;
     try {
@@ -141,6 +154,127 @@ export function registerProxyRoutes(
 
     return reply.code(upstreamRes.status).send(payload);
   });
+}
+
+/**
+ * Relay an upstream OpenAI SSE stream to the client, rehydrating placeholders
+ * in `delta.content` and streamed tool-call `arguments`. Because a placeholder
+ * can be split across chunks, each output sequence gets its own
+ * {@link StreamRehydrator} that buffers a trailing partial token until it
+ * completes. Yields already-framed `data: …\n\n` events.
+ */
+async function* relaySse(
+  upstreamBody: ReadableStream<Uint8Array>,
+  tokenMap: TokenMap,
+  rehydrateEnabled: boolean,
+): AsyncGenerator<string> {
+  const reader = upstreamBody.getReader();
+  const decoder = new TextDecoder();
+
+  // One rehydrator per choice index (content) and per choice:tool-call (args),
+  // so independent output streams never share a buffer.
+  const contentR = new Map<number, StreamRehydrator>();
+  const argsR = new Map<string, StreamRehydrator>();
+  const content = (i: number) =>
+    contentR.get(i) ?? contentR.set(i, new StreamRehydrator(tokenMap)).get(i)!;
+  const argsFor = (k: string) =>
+    argsR.get(k) ?? argsR.set(k, new StreamRehydrator(tokenMap)).get(k)!;
+
+  const processLine = (line: string): string | null => {
+    const trimmed = line.trim();
+    if (trimmed === "" || !trimmed.startsWith("data:")) return null;
+    const payload = trimmed.slice(5).trim();
+
+    if (payload === "[DONE]") {
+      // Flush anything still buffered as synthetic trailing chunks so no
+      // rehydrated text is lost if the provider omitted a finish_reason.
+      let pre = "";
+      if (rehydrateEnabled) {
+        for (const [i, r] of contentR) {
+          const rest = r.flush();
+          if (rest)
+            pre += frame({ choices: [{ index: i, delta: { content: rest } }] });
+        }
+        for (const [k, r] of argsR) {
+          const rest = r.flush();
+          if (!rest) continue;
+          const [i, tci] = k.split(":").map(Number);
+          pre += frame({
+            choices: [
+              {
+                index: i,
+                delta: {
+                  tool_calls: [{ index: tci, function: { arguments: rest } }],
+                },
+              },
+            ],
+          });
+        }
+      }
+      return pre + "data: [DONE]\n\n";
+    }
+
+    if (!rehydrateEnabled) return `data: ${payload}\n\n`;
+
+    let obj: any;
+    try {
+      obj = JSON.parse(payload);
+    } catch {
+      return `data: ${payload}\n\n`; // pass malformed lines through untouched
+    }
+
+    for (const ch of obj?.choices ?? []) {
+      const index = typeof ch.index === "number" ? ch.index : 0;
+      const finished = ch.finish_reason != null;
+      const delta = ch.delta;
+      if (!delta || typeof delta !== "object") continue;
+
+      if (typeof delta.content === "string") {
+        let c = content(index).push(delta.content);
+        if (finished) c += content(index).flush();
+        delta.content = c;
+      } else if (finished) {
+        const rest = content(index).flush();
+        if (rest) delta.content = rest;
+      }
+
+      if (Array.isArray(delta.tool_calls)) {
+        for (const tc of delta.tool_calls) {
+          const tci = typeof tc.index === "number" ? tc.index : 0;
+          const fn = tc.function;
+          if (fn && typeof fn.arguments === "string") {
+            const key = `${index}:${tci}`;
+            let a = argsFor(key).push(fn.arguments);
+            if (finished) a += argsFor(key).flush();
+            fn.arguments = a;
+          }
+        }
+      }
+    }
+    return `data: ${JSON.stringify(obj)}\n\n`;
+  };
+
+  let raw = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    raw += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = raw.indexOf("\n")) !== -1) {
+      const out = processLine(raw.slice(0, nl));
+      raw = raw.slice(nl + 1);
+      if (out !== null) yield out;
+    }
+  }
+  if (raw.length > 0) {
+    const out = processLine(raw);
+    if (out !== null) yield out;
+  }
+}
+
+/** Serialize a synthetic chat-completion chunk as one framed SSE event. */
+function frame(obj: unknown): string {
+  return `data: ${JSON.stringify(obj)}\n\n`;
 }
 
 /**

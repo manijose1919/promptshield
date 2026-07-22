@@ -81,7 +81,7 @@ back over the wire redundantly:
 ## 🔌 Integration guide (plugging into enterprise systems)
 
 ### 1. Transparent OpenAI proxy — no application code changes
-Set your existing OpenAI client's base URL to PromptShield. The gateway redacts outbound prompts, forwards them to your real upstream provider (whose key it holds server-side), and rehydrates the response.
+Set your existing OpenAI client's base URL to PromptShield. The gateway redacts outbound prompts, forwards them to your real upstream provider (whose key it holds server-side), and rehydrates the response — including **streaming** (`stream: true`) responses, where placeholders split across SSE chunks are buffered and rehydrated correctly as the stream flows to the client.
 
 ```ts
 import OpenAI from "openai";

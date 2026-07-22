@@ -12,6 +12,7 @@ function buildProxyApp(opts: {
   captured?: { body?: any };
   responseContent?: string;
   responseBody?: unknown;
+  streamChunks?: string[];
   status?: number;
   rehydrate?: boolean;
 }): FastifyInstance {
@@ -25,6 +26,21 @@ function buildProxyApp(opts: {
 
   const fetchImpl = (async (_url: string, init: RequestInit) => {
     if (opts.captured) opts.captured.body = JSON.parse(String(init.body));
+
+    if (opts.streamChunks) {
+      const enc = new TextEncoder();
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const c of opts.streamChunks!) controller.enqueue(enc.encode(c));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: opts.status ?? 200,
+        headers: { "content-type": "text/event-stream" },
+      });
+    }
+
     const body = opts.responseBody ?? {
       id: "chatcmpl-1",
       choices: [
@@ -38,6 +54,22 @@ function buildProxyApp(opts: {
   }) as unknown as typeof fetch;
 
   return createApp(config, { fetchImpl });
+}
+
+/** Reassemble concatenated delta.content from a relayed SSE body. */
+function sseContent(body: string): string {
+  let out = "";
+  for (const line of body.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (payload === "[DONE]" || payload === "") continue;
+    const chunk = JSON.parse(payload);
+    for (const ch of chunk.choices ?? []) {
+      if (typeof ch.delta?.content === "string") out += ch.delta.content;
+    }
+  }
+  return out;
 }
 
 describe("POST /v1/chat/completions (proxy)", () => {
@@ -166,15 +198,94 @@ describe("POST /v1/chat/completions (proxy)", () => {
     await app.close();
   });
 
-  it("rejects streaming requests with 400", async () => {
-    const app = buildProxyApp({});
+  it("streams and rehydrates a placeholder split across SSE chunks", async () => {
+    const captured: { body?: any } = {};
+    const app = buildProxyApp({
+      captured,
+      streamChunks: [
+        'data: {"choices":[{"index":0,"delta":{"content":"I emailed [EMA"}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{"content":"IL_1]"}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n',
+        "data: [DONE]\n\n",
+      ],
+    });
     const res = await app.inject({
       method: "POST",
       url: "/v1/chat/completions",
-      payload: { model: "gpt-4o", stream: true, messages: [{ role: "user", content: "hi" }] },
+      payload: {
+        model: "gpt-4o",
+        stream: true,
+        messages: [{ role: "user", content: "email bob@x.io" }],
+      },
     });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe("streaming_unsupported");
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+
+    // Outbound request was still redacted and marked stream:true.
+    expect(JSON.stringify(captured.body)).not.toContain("bob@x.io");
+    expect(captured.body.stream).toBe(true);
+
+    const body = res.body;
+    expect(sseContent(body)).toBe("I emailed bob@x.io");
+    expect(body).not.toContain("[EMAIL_1]"); // no placeholder leaked to client
+    expect(body).toContain("[DONE]"); // terminator preserved
+    await app.close();
+  });
+
+  it("streams tool-call argument deltas rehydrated across chunks", async () => {
+    const app = buildProxyApp({
+      streamChunks: [
+        'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"to\\":\\"[EMA"}}]}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"IL_1]\\"}"}}]}}]}\n\n',
+        'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+        "data: [DONE]\n\n",
+      ],
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      payload: {
+        model: "gpt-4o",
+        stream: true,
+        messages: [{ role: "user", content: "email bob@x.io" }],
+      },
+    });
+    // Reassemble streamed tool-call arguments.
+    let args = "";
+    for (const line of res.body.split("\n")) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      const p = t.slice(5).trim();
+      if (p === "[DONE]" || p === "") continue;
+      for (const ch of JSON.parse(p).choices ?? []) {
+        for (const tc of ch.delta?.tool_calls ?? []) {
+          if (typeof tc.function?.arguments === "string")
+            args += tc.function.arguments;
+        }
+      }
+    }
+    expect(args).toBe('{"to":"bob@x.io"}');
+    await app.close();
+  });
+
+  it("passes stream chunks through unchanged when rehydration is disabled", async () => {
+    const app = buildProxyApp({
+      rehydrate: false,
+      streamChunks: [
+        'data: {"choices":[{"index":0,"delta":{"content":"to [EMAIL_1]"}}]}\n\n',
+        "data: [DONE]\n\n",
+      ],
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      payload: {
+        model: "gpt-4o",
+        stream: true,
+        messages: [{ role: "user", content: "bob@x.io" }],
+      },
+    });
+    expect(sseContent(res.body)).toBe("to [EMAIL_1]");
     await app.close();
   });
 

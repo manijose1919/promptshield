@@ -15,6 +15,11 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   needs. Raw PII is never returned on the wire when the vault already holds it.
 
 ### Added
+- **Streaming proxy support** (`stream: true`). The proxy now relays the
+  upstream SSE stream and rehydrates placeholders in `delta.content` and
+  streamed tool-call `arguments` — correctly buffering placeholders split
+  across chunk boundaries via the new pure `StreamRehydrator`. Previously
+  streaming was rejected with a 400.
 - **`KeyValueTokenVault`** + async `TokenVault` interface, so `token_map_id`
   resolves across a horizontally-scaled deployment. Backs onto any
   `AsyncKeyValueStore` (a ~6-line `node-redis`/`ioredis` adapter) — no new
