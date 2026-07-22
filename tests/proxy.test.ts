@@ -11,6 +11,7 @@ import { loadConfig } from "../src/config/env.js";
 function buildProxyApp(opts: {
   captured?: { body?: any };
   responseContent?: string;
+  responseBody?: unknown;
   status?: number;
   rehydrate?: boolean;
 }): FastifyInstance {
@@ -24,15 +25,16 @@ function buildProxyApp(opts: {
 
   const fetchImpl = (async (_url: string, init: RequestInit) => {
     if (opts.captured) opts.captured.body = JSON.parse(String(init.body));
-    return new Response(
-      JSON.stringify({
-        id: "chatcmpl-1",
-        choices: [
-          { index: 0, message: { role: "assistant", content: opts.responseContent ?? "ok" } },
-        ],
-      }),
-      { status: opts.status ?? 200, headers: { "content-type": "application/json" } },
-    );
+    const body = opts.responseBody ?? {
+      id: "chatcmpl-1",
+      choices: [
+        { index: 0, message: { role: "assistant", content: opts.responseContent ?? "ok" } },
+      ],
+    };
+    return new Response(JSON.stringify(body), {
+      status: opts.status ?? 200,
+      headers: { "content-type": "application/json" },
+    });
   }) as unknown as typeof fetch;
 
   return createApp(config, { fetchImpl });
@@ -76,6 +78,77 @@ describe("POST /v1/chat/completions (proxy)", () => {
     expect(res.json().choices[0].message.content).toBe(
       "I emailed bob@x.io for you.",
     );
+    await app.close();
+  });
+
+  it("rehydrates placeholders inside tool call arguments", async () => {
+    const app = buildProxyApp({
+      responseBody: {
+        id: "chatcmpl-1",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                {
+                  id: "call_1",
+                  type: "function",
+                  function: {
+                    name: "send_email",
+                    arguments: '{"to":"[EMAIL_1]","subject":"hi"}',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      payload: {
+        model: "gpt-4o",
+        messages: [{ role: "user", content: "email bob@x.io" }],
+      },
+    });
+    const args =
+      res.json().choices[0].message.tool_calls[0].function.arguments;
+    expect(args).toBe('{"to":"bob@x.io","subject":"hi"}');
+    await app.close();
+  });
+
+  it("rehydrates placeholders in array-style message content parts", async () => {
+    const app = buildProxyApp({
+      responseBody: {
+        id: "chatcmpl-1",
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content: [
+                { type: "text", text: "I emailed [EMAIL_1]" },
+                { type: "text", text: "and cc'd [EMAIL_1]" },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    const res = await app.inject({
+      method: "POST",
+      url: "/v1/chat/completions",
+      payload: {
+        model: "gpt-4o",
+        messages: [{ role: "user", content: "contact bob@x.io" }],
+      },
+    });
+    const parts = res.json().choices[0].message.content;
+    expect(parts[0].text).toBe("I emailed bob@x.io");
+    expect(parts[1].text).toBe("and cc'd bob@x.io");
     await app.close();
   });
 

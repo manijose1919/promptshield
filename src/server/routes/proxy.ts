@@ -143,7 +143,13 @@ export function registerProxyRoutes(
   });
 }
 
-/** Walk an OpenAI chat-completion response and rehydrate message contents. */
+/**
+ * Walk an OpenAI chat-completion response and rehydrate every place a model can
+ * echo a placeholder: string content, multi-part array content, and the JSON
+ * `arguments` string of any tool/function call. Tool-call arguments are the
+ * critical case for agentic use — a redacted email the model routes into a
+ * `send_email` call must come back as the real address or the tool misfires.
+ */
 function rehydratePayload(
   payload: unknown,
   tokenMap: TokenMap,
@@ -152,10 +158,31 @@ function rehydratePayload(
   if (typeof payload !== "object" || payload === null) return;
   const choices = (payload as { choices?: unknown }).choices;
   if (!Array.isArray(choices)) return;
+  const swap = (s: string) => redactor.rehydrate(s, tokenMap);
+
   for (const choice of choices) {
-    const message = (choice as { message?: { content?: unknown } }).message;
-    if (message && typeof message.content === "string") {
-      message.content = redactor.rehydrate(message.content, tokenMap);
+    const message = (choice as { message?: Record<string, unknown> }).message;
+    if (!message || typeof message !== "object") continue;
+
+    // 1. Plain string content.
+    if (typeof message.content === "string") {
+      message.content = swap(message.content);
+    } else if (Array.isArray(message.content)) {
+      // 2. Multi-part content: rehydrate each text part.
+      for (const part of message.content) {
+        if (part && typeof part.text === "string") part.text = swap(part.text);
+      }
+    }
+
+    // 3. Tool / function call arguments (JSON-encoded strings).
+    const toolCalls = message.tool_calls;
+    if (Array.isArray(toolCalls)) {
+      for (const call of toolCalls) {
+        const fn = (call as { function?: { arguments?: unknown } }).function;
+        if (fn && typeof fn.arguments === "string") {
+          fn.arguments = swap(fn.arguments);
+        }
+      }
     }
   }
 }
