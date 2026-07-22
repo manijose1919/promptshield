@@ -15,6 +15,10 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   needs. Raw PII is never returned on the wire when the vault already holds it.
 
 ### Added
+- **`KeyValueTokenVault`** + async `TokenVault` interface, so `token_map_id`
+  resolves across a horizontally-scaled deployment. Backs onto any
+  `AsyncKeyValueStore` (a ~6-line `node-redis`/`ioredis` adapter) — no new
+  dependency in core. `InMemoryTokenVault` remains the default.
 - **Custom detection rules** from `PROMPTSHIELD_CUSTOM_RULES` (regex or literal
   terms), validated at startup, rendered with named placeholders.
 - **`mask` action**: non-reversible partial masking (keep-last-4 for cards /

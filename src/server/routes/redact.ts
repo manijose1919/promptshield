@@ -120,7 +120,7 @@ export function registerRedactRoutes(
       //  - vault path (store_token_map): return an opaque id only.
       //  - stateless path (default): return the inline map the caller needs.
       const tokenMapId = store_token_map
-        ? vault.store(result.tokenMap)
+        ? await vault.store(result.tokenMap)
         : undefined;
       return reply.send({
         redacted: result.redacted,
@@ -141,7 +141,7 @@ export function registerRedactRoutes(
       const { text, token_map, token_map_id } = req.body;
 
       let map: TokenMap | undefined = token_map;
-      if (!map && token_map_id) map = vault.get(token_map_id);
+      if (!map && token_map_id) map = await vault.get(token_map_id);
       if (!map) {
         return reply.code(400).send({
           error: "missing_token_map",

@@ -18,5 +18,5 @@ export {
   summarizeEntities,
 } from "./audit.js";
 export type { AuditSink, AuditEvent } from "./audit.js";
-export { InMemoryTokenVault } from "./vault.js";
-export type { TokenVault } from "./vault.js";
+export { InMemoryTokenVault, KeyValueTokenVault } from "./vault.js";
+export type { TokenVault, AsyncKeyValueStore } from "./vault.js";

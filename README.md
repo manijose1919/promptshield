@@ -169,6 +169,28 @@ PROMPTSHIELD_CUSTOM_RULES='[
 
 Each rule needs a `name` plus either a `pattern` (regex) or `terms` (literals). Matches render as `[EMPLOYEE_ID_1]` and rehydrate like any built-in. Invalid rules fail loudly at startup — never silently.
 
+## Scaling out (shared token vault)
+
+`token_map_id` is served from a `TokenVault`. The default `InMemoryTokenVault`
+is per-process — fine for a single instance, but behind a load balancer an id
+minted on instance A won't resolve on instance B. For horizontal scale, back
+the vault with a shared store via `KeyValueTokenVault` and inject it:
+
+```ts
+import { createClient } from "redis";
+import { createApp, KeyValueTokenVault } from "promptshield/server";
+
+const redis = createClient(); await redis.connect();
+const vault = new KeyValueTokenVault({
+  get: (k) => redis.get(k).then((v) => v ?? undefined),
+  set: (k, v, ttlMs) => redis.set(k, v, { PX: ttlMs }).then(() => {}),
+});
+const app = createApp(config, { vault });
+```
+
+The `AsyncKeyValueStore` contract is intentionally tiny (`get` + `set`), so any
+networked store works and PromptShield's core keeps its zero-dependency footprint.
+
 ## Configuration
 
 All configuration is via environment variables — see [`.env.example`](./.env.example). Secrets (provider keys, client keys) are **never** hardcoded.
