@@ -11,8 +11,15 @@ export interface PromptShieldClientOptions {
 
 export interface RedactResponse {
   redacted: string;
-  entities: Array<{ type: string; placeholder: string; action: string }>;
-  token_map: TokenMap;
+  entities: Array<{
+    type: string;
+    label: string;
+    placeholder: string;
+    action: string;
+  }>;
+  /** Present on the stateless path; omitted when `store_token_map` was set. */
+  token_map?: TokenMap;
+  /** Present only when `store_token_map` was set (the vault path). */
   token_map_id?: string;
   blocked: boolean;
 }

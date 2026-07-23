@@ -19,7 +19,7 @@ Enterprise DLP suites exist, but they are heavy, expensive, and not designed to 
 - **Detects** PII with modular, composable detectors (email, phone, credit card w/ Luhn check, SSN, IPv4/IPv6, JWT & API-key patterns) plus **heuristic** detectors for dates/DOB, US street addresses, and cued person names — with an **async seam** to plug in a real NER model when you need open-vocabulary name detection.
 - **Redacts** matches into stable, reversible placeholders like `[EMAIL_1]`.
 - **Rehydrates** placeholders back to the original values when you need them (e.g. on the model's response).
-- **Enforces policy** per entity type: `redact`, `block` (reject the request), or `allow`.
+- **Enforces policy** per entity type: `redact`, `mask` (partial reveal), `block` (reject the request), or `allow`.
 - **Audits** every event to a pluggable sink (stdout / JSONL file) — without ever storing the raw PII.
 
 ## Three ways to use it (one core)
@@ -59,8 +59,8 @@ curl -s http://localhost:8787/v1/redact \
 {
   "redacted": "Email me at [EMAIL_1] or call [PHONE_1]",
   "entities": [
-    { "type": "EMAIL", "placeholder": "[EMAIL_1]", "action": "redact" },
-    { "type": "PHONE", "placeholder": "[PHONE_1]", "action": "redact" }
+    { "type": "EMAIL", "label": "EMAIL", "placeholder": "[EMAIL_1]", "action": "redact" },
+    { "type": "PHONE", "label": "PHONE", "placeholder": "[PHONE_1]", "action": "redact" }
   ],
   "token_map": { "entries": { "[EMAIL_1]": "jane.doe@acme.com", "[PHONE_1]": "415-555-0132" } }
 }

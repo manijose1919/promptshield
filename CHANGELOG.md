@@ -3,7 +3,7 @@
 All notable changes to PromptShield are documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased] — Phase 3 features
+## [0.2.0] — 2026-07-23
 
 ### Changed
 - **Proxy rehydration** now also restores placeholders inside multi-part
