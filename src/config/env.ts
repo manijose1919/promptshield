@@ -50,6 +50,13 @@ const EnvSchema = z.object({
    *  {"tenant-a-key":{"default":"block"},"tenant-b-key":{"overrides":{"EMAIL":"mask"}}}
    *  Keys named here are also accepted as valid auth keys. */
   PROMPTSHIELD_KEY_POLICIES: z.string().default(""),
+
+  /**
+   * Trust X-Forwarded-* from a reverse proxy. Must stay false unless PromptShield
+   * sits behind a trusted terminator — otherwise clients can spoof their IP and
+   * bypass per-IP rate limits when auth is off.
+   */
+  TRUST_PROXY: boolish.default("false"),
 });
 
 const ActionEnum = z.enum(["redact", "mask", "block", "allow"]);
@@ -100,6 +107,7 @@ export type AppConfig = {
   rehydrateResponses: boolean;
   customRules: CustomRuleSpec[];
   keyPolicies: Record<string, ScopedPolicy>;
+  trustProxy: boolean;
 };
 
 /**
@@ -126,5 +134,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     rehydrateResponses: parsed.REHYDRATE_RESPONSES,
     customRules: parseCustomRules(parsed.PROMPTSHIELD_CUSTOM_RULES),
     keyPolicies: parseKeyPolicies(parsed.PROMPTSHIELD_KEY_POLICIES),
+    trustProxy: parsed.TRUST_PROXY,
   };
 }

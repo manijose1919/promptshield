@@ -3,6 +3,23 @@
 All notable changes to PromptShield are documented here.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Security
+- HTTP responses now send `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, and a locked-down `Permissions-Policy`.
+- Custom regex rules that look catastrophically backtracking (nested
+  quantifiers) or exceed 256 characters are rejected at startup.
+- API-key comparison always performs a same-length `timingSafeEqual`, including
+  when a candidate's length does not match a configured key.
+- New `TRUST_PROXY` flag (default `false`) so per-IP rate limits only honor
+  `X-Forwarded-*` behind a trusted reverse proxy.
+- `npm audit fix` for `fast-uri`, `find-my-way`, `nanoid`, and `postcss`.
+
+### Added
+- `SECURITY.md` and Dependabot (npm + GitHub Actions, weekly).
+- docker-compose now forwards rate-limit and `TRUST_PROXY` env vars.
+
 ## [0.2.0] — 2026-07-23
 
 ### Changed

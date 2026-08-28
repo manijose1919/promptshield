@@ -12,6 +12,17 @@ function buildApp(env: NodeJS.ProcessEnv = {}): FastifyInstance {
   return createApp(config);
 }
 
+describe("security headers", () => {
+  it("sets nosniff / DENY / no-referrer on every response", async () => {
+    const app = buildApp();
+    const res = await app.inject({ method: "GET", url: "/health" });
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["x-frame-options"]).toBe("DENY");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    await app.close();
+  });
+});
+
 describe("health", () => {
   let app: FastifyInstance;
   beforeEach(() => {

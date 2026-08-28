@@ -16,6 +16,30 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Hard cap so a config typo cannot feed a multi-kilobyte regex into the event loop. */
+export const MAX_CUSTOM_PATTERN_LENGTH = 256;
+
+/**
+ * Nested quantifiers like `(a+)+` / `(a*){2,}` are the classic catastrophic
+ * backtracking shape. Custom rules are operator-supplied, but they still run
+ * on every request — reject the known-bad forms at config load rather than
+ * hanging the process later.
+ */
+const NESTED_QUANTIFIER = /(\([^)]*[+*{?][^)]*\)|\[[^\]]*[+*{?][^\]]*\])[+*{]/;
+
+export function assertSafeCustomPattern(name: string, pattern: string): void {
+  if (pattern.length > MAX_CUSTOM_PATTERN_LENGTH) {
+    throw new Error(
+      `Custom rule "${name}" pattern exceeds ${MAX_CUSTOM_PATTERN_LENGTH} characters.`,
+    );
+  }
+  if (NESTED_QUANTIFIER.test(pattern)) {
+    throw new Error(
+      `Custom rule "${name}" pattern looks catastrophically backtracking (nested quantifiers). Rewrite it without nested +/*/{}.`,
+    );
+  }
+}
+
 /**
  * Build a detector from a user-supplied rule. Custom detectors emit matches of
  * type "CUSTOM" carrying the rule name as `label`, so they flow through the
@@ -29,6 +53,7 @@ export function createCustomDetector(spec: CustomRuleSpec): Detector {
   let source: string;
 
   if (spec.pattern && spec.pattern.length > 0) {
+    assertSafeCustomPattern(spec.name, spec.pattern);
     source = spec.pattern;
   } else if (spec.terms && spec.terms.length > 0) {
     source = `\\b(?:${spec.terms.map(escapeRegExp).join("|")})\\b`;

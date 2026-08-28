@@ -9,6 +9,7 @@ import { createAuditSink, type AuditSink } from "../core/audit.js";
 import { InMemoryTokenVault, type TokenVault } from "../core/vault.js";
 import { registerAuth } from "./plugins/auth.js";
 import { registerRateLimit } from "./plugins/rateLimit.js";
+import { registerSecurityHeaders } from "./plugins/securityHeaders.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerRedactRoutes } from "./routes/redact.js";
 import { registerProxyRoutes } from "./routes/proxy.js";
@@ -42,6 +43,7 @@ export function createApp(
   const app = Fastify({
     logger: { level: config.logLevel },
     bodyLimit: 2 * 1024 * 1024,
+    trustProxy: config.trustProxy,
   });
 
   const policy = new PolicyEngine({ defaultAction: config.defaultAction });
@@ -68,6 +70,7 @@ export function createApp(
     new Set([...config.apiKeys, ...Object.keys(config.keyPolicies)]),
   );
 
+  registerSecurityHeaders(app);
   registerAuth(app, authKeys);
   registerRateLimit(app, {
     limit: config.rateLimit,
