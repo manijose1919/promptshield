@@ -33,6 +33,27 @@ describe("createCustomDetector", () => {
       /invalid regex/,
     );
   });
+
+  it("rejects nested-quantifier patterns that backtrack catastrophically", () => {
+    expect(() =>
+      createCustomDetector({ name: "evil", pattern: "(a+)+" }),
+    ).toThrow(/catastrophically backtracking/);
+    expect(() =>
+      createCustomDetector({ name: "evil", pattern: "(a*){2,}" }),
+    ).toThrow(/catastrophically backtracking/);
+  });
+
+  it("rejects oversized patterns", () => {
+    expect(() =>
+      createCustomDetector({ name: "huge", pattern: "a".repeat(300) }),
+    ).toThrow(/exceeds 256/);
+  });
+
+  it("still accepts ordinary bounded patterns", () => {
+    expect(() =>
+      createCustomDetector({ name: "employee id", pattern: "EMP-\\d{5}" }),
+    ).not.toThrow();
+  });
 });
 
 describe("Redactor with custom detectors", () => {

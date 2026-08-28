@@ -12,10 +12,18 @@ import { timingSafeEqual } from "node:crypto";
 function matchKey(candidate: string, keys: string[]): string | undefined {
   const cand = Buffer.from(candidate);
   let matched: string | undefined;
+  // timingSafeEqual throws on length mismatch, so a naive skip-on-unequal-length
+  // leaks whether the candidate's length matched a configured key. Always do a
+  // same-length compare (real key or a padded copy) and never short-circuit.
   for (const key of keys) {
     const k = Buffer.from(key);
-    // Length must match for timingSafeEqual; compare against same-length buffer.
-    if (k.length === cand.length && timingSafeEqual(k, cand)) matched = key;
+    if (k.length === cand.length) {
+      if (timingSafeEqual(k, cand)) matched = key;
+    } else {
+      const padded = Buffer.alloc(cand.length);
+      k.copy(padded, 0, 0, Math.min(k.length, cand.length));
+      timingSafeEqual(padded, cand);
+    }
   }
   return matched;
 }

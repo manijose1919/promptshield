@@ -177,7 +177,9 @@ Protect your upstream (and your bill) with a per-caller token bucket. Set
 `PROMPTSHIELD_RATE_WINDOW_SEC` to the window length (default 60s); `0` disables
 it. Callers are keyed by **API key** when auth is on, else by **client IP**.
 Over-budget requests get `429` with a `Retry-After` header. Public routes
-(`/health`, `/metrics`) are never limited.
+(`/health`, `/metrics`) are never limited. If you sit behind a reverse proxy,
+set `TRUST_PROXY=true` so the client IP is taken from `X-Forwarded-For` —
+leave it off otherwise, or callers can spoof their IP.
 
 ```bash
 PROMPTSHIELD_RATE_LIMIT=100   # 100 requests…
@@ -205,7 +207,11 @@ PROMPTSHIELD_CUSTOM_RULES='[
 ]'
 ```
 
-Each rule needs a `name` plus either a `pattern` (regex) or `terms` (literals). Matches render as `[EMPLOYEE_ID_1]` and rehydrate like any built-in. Invalid rules fail loudly at startup — never silently.
+Each rule needs a `name` plus either a `pattern` (regex) or `terms` (literals).
+Patterns that nested-quantifier backtrack (e.g. `(a+)+`) or exceed 256
+characters are rejected at startup. Matches render as `[EMPLOYEE_ID_1]` and
+rehydrate like any built-in. Invalid rules fail loudly at startup — never
+silently.
 
 ## Scaling out (shared token vault)
 
